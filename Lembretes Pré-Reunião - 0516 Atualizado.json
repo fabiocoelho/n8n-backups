@@ -1,5 +1,5 @@
 {
-  "name": "Lembretes Pré-Reunião (0516)",
+  "name": "Lembretes Pré-Reunião - 0516 Atualizado",
   "nodes": [
     {
       "parameters": {
@@ -59,7 +59,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const agoraUTC = new Date();\nconst agoraBR = new Date(agoraUTC.toLocaleString(\"en-US\", { timeZone: \"America/Sao_Paulo\" }));\n\nconst lembretes = [];\n\nfor (const item of $input.all()) {\n  if (!item.json.data_reuniao || !item.json.whatsapp) continue;\n\n  const dataReuniaoUTC = new Date(item.json.data_reuniao);\n  const dataReuniaoBR = new Date(dataReuniaoUTC.toLocaleString(\"en-US\", { timeZone: \"America/Sao_Paulo\" }));\n\n  const diffMinutos = (dataReuniaoUTC.getTime() - agoraUTC.getTime()) / 60000;\n\n  // Ignora reuniões que já passaram\n  if (diffMinutos <= 0) continue;\n\n  const isHoje = dataReuniaoBR.toDateString() === agoraBR.toDateString();\n  const horaAtual = agoraBR.getHours();\n  const minutoAtual = agoraBR.getMinutes();\n\n  // 1. Prioridade 10m e 1h (Intervalos semiabertos '>' e '<=' evitam envio duplo)\n  if (diffMinutos > 5 && diffMinutos <= 15) {\n    item.json.tipo_lembrete = \"10m\";\n    lembretes.push(item);\n  } \n  else if (diffMinutos > 55 && diffMinutos <= 65) {\n    item.json.tipo_lembrete = \"1h\";\n    lembretes.push(item);\n  } \n  // 2. Lembrete MATINAL agora configurado para 7h (Só envia se faltar mais de 75 min pra reunião)\n  else if (isHoje && horaAtual === 7 && minutoAtual < 10 && diffMinutos > 75) {\n    item.json.tipo_lembrete = \"7h\";\n    lembretes.push(item);\n  }\n}\n\nreturn lembretes;"
+        "jsCode": "const agoraUTC = new Date();\nconst agoraBR = new Date(agoraUTC.toLocaleString(\"en-US\", { timeZone: \"America/Sao_Paulo\" }));\n\nconst lembretes = [];\n\nfor (const item of $input.all()) {\n  if (!item.json.data_reuniao || !item.json.whatsapp) continue;\n\n  const dataReuniaoUTC = new Date(item.json.data_reuniao);\n  const dataReuniaoBR = new Date(dataReuniaoUTC.toLocaleString(\"en-US\", { timeZone: \"America/Sao_Paulo\" }));\n\n  // Math.round evita que milissegundos de atraso do servidor pulem a janela de disparo\n  const diffMinutos = Math.round((dataReuniaoUTC.getTime() - agoraUTC.getTime()) / 60000);\n\n  // Ignora reuniões que já passaram\n  if (diffMinutos <= 0) continue;\n\n  const isHoje = dataReuniaoBR.toDateString() === agoraBR.toDateString();\n  const horaAtual = agoraBR.getHours();\n  const minutoAtual = agoraBR.getMinutes();\n\n  // 1. Prioridade 10m e 1h (Intervalos semiabertos '>' e '<=' evitam envio duplo)\n  if (diffMinutos > 5 && diffMinutos <= 15) {\n    item.json.tipo_lembrete = \"10m\";\n    lembretes.push(item);\n  } \n  else if (diffMinutos > 55 && diffMinutos <= 65) {\n    item.json.tipo_lembrete = \"1h\";\n    lembretes.push(item);\n  } \n  // 2. Lembrete MATINAL configurado para 7h (Só envia se faltar mais de 75 min pra reunião)\n  else if (isHoje && horaAtual === 7 && minutoAtual < 10 && diffMinutos > 75) {\n    item.json.tipo_lembrete = \"7h\";\n    lembretes.push(item);\n  }\n}\n\nreturn lembretes;"
       },
       "id": "d1490e65-6771-43a7-b7ef-9bdc65f1c164",
       "name": "Calculadora de Tempo",
@@ -114,8 +114,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"Oi {{ $json.nome_contato || $json.nome_negocio || '' }}, falta 1 hora pro nosso bate-papo! Já deixei tudo engatilhado aqui. Até já!\"\n}",
-        "options": {}
+        "jsonBody": "={\n  \"number\": \"{{ $json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"Oi{{ ($json.nome_contato || json.nomenegocio)?''+(json.nome_contato || $json.nome_negocio) : '' }}, falta 1 hora pro nosso bate-papo! Já deixei tudo engatilhado aqui. Até já!\"\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 5000
+            }
+          }
+        }
       },
       "id": "1eac588b-bc07-466f-80c7-99187ae0524c",
       "name": "Uazapi - Lembrete 1h",
@@ -142,8 +149,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"{{ $json.nome_contato || $json.nome_negocio || '' }}, tô chegando! Pode ir acessando o WhatsApp que já estou me preparando aqui, te ligo em poucos minutos.\"\n}",
-        "options": {}
+        "jsonBody": "={\n  \"number\": \"{{ $json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"{{ $json.nome_contato || $json.nome_negocio || 'Oi' }}, tô chegando! Pode ir acessando o WhatsApp que já estou me preparando aqui, te ligo em poucos minutos.\"\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 5000
+            }
+          }
+        }
       },
       "id": "eabbc271-e6d7-4aaf-a6cb-9a12aebbe3be",
       "name": "Uazapi - Lembrete 10m",
@@ -162,7 +176,7 @@
             {
               "id": "fe3e08f2-d6ee-4bbe-8e12-581f93770e81",
               "name": "token",
-              "value": "9b1026ab-2491-4d7d-8317-14a5ebeab0a6",
+              "value": "79a0a9cf-9fc2-4b5a-933f-9c3c71ea108b",
               "type": "string"
             }
           ]
@@ -193,8 +207,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"Bom dia, {{ $json.nome_contato || $json.nome_negocio || '' }}! Passando só pra lembrar do nosso bate-papo de hoje às {{ new Date($json.data_reuniao).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) }}. Vai ser aqui via WhatsApp mesmo. Até mais!\"\n}",
-        "options": {}
+        "jsonBody": "={\n  \"number\": \"{{ $json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"Bom dia{{ ($json.nome_contato || json.nomenegocio)?','+(json.nome_contato || $json.nome_negocio) : '' }}! Passando só pra lembrar do nosso bate-papo de hoje às {{ new Date($json.data_reuniao).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) }}. Vai ser aqui via WhatsApp mesmo. Até mais!\"\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 5000
+            }
+          }
+        }
       },
       "id": "1b540fbd-1dc7-4b1f-a9c7-14d4a9105a6c",
       "name": "Uazapi - Lembrete 7h",
@@ -286,7 +307,7 @@
     "binaryMode": "separate",
     "availableInMCP": true
   },
-  "versionId": "5e35a480-72ca-4930-a7b4-4d84f6788c35",
+  "versionId": "13567609-39ca-41f4-bd49-81edaa90d670",
   "meta": {
     "instanceId": "ea4ff6e230fcfbbc07839ceec4042a2116291c314eed27927035c7f01088f7ea"
   },
