@@ -1,0 +1,3559 @@
+{
+  "name": "PRINCIPAL - Agente SDR - Venda de Site - 0516 Atualizado",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3424,
+        288
+      ],
+      "id": "103353c6-9c70-4f22-886f-88d243d34024",
+      "name": "Processar Lead por Lead"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Função do Spintax\nfunction processSpintax(text) {\n  let reg = /\\{([^{}]+)\\}/g;\n  while (reg.test(text)) {\n    text = text.replace(reg, (match, choices) => {\n      const options = choices.split('|');\n      return options[Math.floor(Math.random() * options.length)];\n    });\n  }\n  return text;\n}\n\n// Dicionário de correções de acentuação para termos comuns\nconst mapaAcentos = {\n  \"sao\": \"São\",\n  \"joao\": \"João\",\n  \"conceicao\": \"Conceição\",\n  \"cristovao\": \"Cristóvão\",\n  \"santana\": \"Santana\",\n  \"beira rio\": \"Beira-Rio\",\n  \"servico\": \"Serviço\",\n  \"servicos\": \"Serviços\",\n  \"autenticacao\": \"Autenticação\"\n};\n\n// NOVA FUNÇÃO: Remove subtítulos descritivos e termos jurídicos (Ex: corta \" - Estética e Barbearia\")\nfunction limparNomeEmpresa(nome) {\n  if (!nome) return \"\";\n  \n  // 1. Corta tudo que vier depois de \" - \", \" | \" ou \" – \"\n  let nomeLimpo = nome.split(' - ')[0];\n  nomeLimpo = nomeLimpo.split(' | ')[0];\n  nomeLimpo = nomeLimpo.split(' – ')[0];\n\n  // 2. Remove termos jurídicos comuns (LTDA, ME, EPP, S/A, EIRELI)\n  nomeLimpo = nomeLimpo.replace(/\\s+(ltda|me|epp|s\\/?a\\.?|eireli)\\b/gi, '');\n  \n  return nomeLimpo.trim();\n}\n\n// Função: Transforma \"NOME GARRAFAL\" em \"Nome Garrafal\" e aplica acentos comuns\nfunction formatarNome(texto) {\n  if (!texto) return \"\";\n  return texto\n    .toLowerCase()\n    .split(' ')\n    .map(palavra => {\n      if (mapaAcentos[palavra]) {\n        return mapaAcentos[palavra];\n      }\n      return palavra.charAt(0).toUpperCase() + palavra.slice(1);\n    })\n    .join(' ');\n}\n\nreturn $input.all().map(item => {\n  const lead = item.json;\n  \n  // Limpa a sujeira do nome e depois aplica a formatação visual\n  let nomeBruto = (lead.nome_negocio || \"\").trim();\n  nomeBruto = limparNomeEmpresa(nomeBruto);\n  const nomeEmpresa = formatarNome(nomeBruto);\n  \n  const bairro = formatarNome((lead.bairro || \"\").trim());\n\n  // Identifica a hora atual para definir a saudação coerente\n  const horaAtual = parseInt(new Date().toLocaleString(\"pt-BR\", { timeZone: \"America/Sao_Paulo\", hour: \"numeric\" }));\n  \n  let saudacaoHorario = \"bom dia\";\n  if (horaAtual >= 12 && horaAtual < 19) {\n    saudacaoHorario = \"boa tarde\";\n  } else if (horaAtual >= 19 || horaAtual < 5) {\n    saudacaoHorario = \"boa noite\";\n  }\n\n  // Matriz de Templates\n  const templates = [\n    `{Opa|Oi|Fala} ${saudacaoHorario}! {Esse|Este} {whats|número} é da ${nomeEmpresa || \"empresa\"}?`,\n    `${saudacaoHorario}, {td bem|blz}? {Estou|Tô} falando com a ${nomeEmpresa || \"empresa\"}?`,\n    `{Oi|Opa}, ${saudacaoHorario}! Aqui é do {whats|contato} da ${nomeEmpresa || \"empresa\"}?`\n  ];\n\n  const templateSorteado = templates[Math.floor(Math.random() * templates.length)];\n  let mensagem = processSpintax(templateSorteado);\n\n  // Capitaliza o início da mensagem e qualquer letra após pontuação (. ! ?)\n  mensagem = mensagem.replace(/(^|[.!?]\\s+)([a-zç])/g, match => match.toUpperCase());\n\n  return {\n    json: {\n      ...lead,\n      mensagem_whatsapp: mensagem\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2528,
+        48
+      ],
+      "name": "Gerador da Msg1 (Spintax)",
+      "id": "ff0cf6ac-ddb3-42f6-abe5-e99d3dc55ece"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Função para ler e sortear as opções do Spintax\nfunction processSpintax(text) {\n  let matches, options, random;\n  const regEx = new RegExp(/{([^{}]+?)}/);\n  while ((matches = regEx.exec(text)) !== null) {\n    options = matches[1].split(\"|\");\n    random = Math.floor(Math.random() * options.length);\n    text = text.replace(matches[0], options[random]);\n  }\n  return text;\n}\n\n// Função para formatar o nome do bairro (Maiúsculas e Acentos)\nfunction formatarBairro(nome) {\n  if (!nome || nome === 'na região') return 'na região';\n  \n  // 1. Corrige acentuações comuns (tudo em minúsculo para facilitar)\n  let corrigido = nome.toLowerCase()\n    .replace(/\\bsao\\b/g, 'são')\n    .replace(/\\bjoao\\b/g, 'joão');\n\n  // 2. Capitaliza a primeira letra de cada palavra (ignorando de/da/do)\n  return corrigido.split(' ').map(palavra => {\n    if (['de', 'da', 'do', 'das', 'dos'].includes(palavra)) return palavra;\n    return palavra.charAt(0).toUpperCase() + palavra.slice(1);\n  }).join(' ');\n}\n\nreturn $input.all().map(item => {\n  // 1. Puxa os dados originais do lead\n  const lead = $('Buscar Lead no Supabase').first().json;\n\n  // 2. Trata e formata o bairro com a nova função\n  const bairroBruto = lead.bairro ? lead.bairro.trim() : 'na região';\n  const bairro = formatarBairro(bairroBruto);\n\n  // 3. Monta o Spintax principal\n  const templateFinal = `{Vcs tão no bairro ${bairro}|Vcs ficam no bairro ${bairro}|Vi que vcs ficam no bairro ${bairro}, confere|Vcs atendem aqui no bairro ${bairro}}`;\n\n  // 4. Roda a função Spintax para sortear o texto bruto\n  let mensagem = processSpintax(templateFinal);\n\n  // 5. Adiciona o ponto de interrogação no final SEMPRE\n  mensagem += '?';\n\n  // 6. Garante que a primeira letra da frase seja SEMPRE maiúscula\n  mensagem = mensagem.charAt(0).toUpperCase() + mensagem.slice(1);\n\n  // 7. Retorna todos os dados para o próximo nó\n  item.json.mensagem_whatsapp = mensagem;\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2528,
+        512
+      ],
+      "id": "170679c7-713e-4a6f-889b-f930faf5d0a0",
+      "name": "Gerador da Msg2 (Spintax)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://chat.getsite.com.br/api/v1/accounts/1/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $('Processar Lead por Lead').item.json.nome_negocio }}"
+            },
+            {
+              "name": "phone_number",
+              "value": "={{ $('Processar Lead por Lead').item.json.whatsapp }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1856,
+        -48
+      ],
+      "id": "d229c0d5-53c3-4a8f-8d80-94925dc039dc",
+      "name": "Chatwoot - Criar Contato",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3a7e8a44-566c-8060-837e-000b93a35902",
+          "mode": "list",
+          "cachedResultName": "CRM Kanban",
+          "cachedResultUrl": "https://app.notion.com/p/3a7e8a44566c80a6a372c5609517a448"
+        },
+        "title": "={{ $('Processar Lead por Lead').item.json.nome_negocio }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|select",
+              "selectValue": "2. Em Qualificação (Msgs)"
+            },
+            {
+              "key": "Telefone/WhatsApp|phone_number",
+              "phoneValue": "={{ $('Processar Lead por Lead').item.json.whatsapp }}"
+            },
+            {
+              "key": "Bairro|rich_text",
+              "textContent": "={{ $('Processar Lead por Lead').item.json.bairro }}"
+            },
+            {
+              "key": "Segmento|rich_text",
+              "textContent": "={{ $('Processar Lead por Lead').item.json.segmento }}"
+            },
+            {
+              "key": "Link do Google Meu Negócio|url",
+              "urlValue": "={{ $('Processar Lead por Lead').item.json.link_gmb }}",
+              "ignoreIfEmpty": true
+            },
+            {
+              "key": "ID Supabase|rich_text",
+              "textContent": "={{ $('Processar Lead por Lead').item.json.id.toString() }}"
+            },
+            {
+              "key": "Nome do contato|rich_text",
+              "textContent": "={{ $('Processar Lead por Lead').item.json.nome_contato || 'Nome do Contato Aqui' }}"
+            },
+            {
+              "key": "Endereço|rich_text",
+              "textContent": "={{ $('Processar Lead por Lead').item.json.endereco }}"
+            },
+            {
+              "key": "Tag de origem|select",
+              "selectValue": "Google Map"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        -1408,
+        -48
+      ],
+      "id": "44488de2-e523-46af-9fd5-e0684d03caec",
+      "name": "Notion - Criar Contato",
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $if($('Transcribe a recording').isExecuted, ($('Unificar Mensagens (Join) - Esteira 3').first().json.mensagem_unificada.replace(/\\[Áudio [^\\]]+\\]/g, '').trim() ? $('Unificar Mensagens (Join) - Esteira 3').first().json.mensagem_unificada.replace(/\\[Áudio [^\\]]+\\]/g, '').trim() + \"\\n\\n\" : \"\") + \"[Áudio transcrito do lead]: \" + $('Transcribe a recording').first().json.text, $('Unificar Mensagens (Join) - Esteira 3').first().json.mensagem_unificada.replace(/\\[Áudio [^\\]]+\\]/g, '').trim()) }}",
+        "options": {
+          "systemMessage": "=#1 PAPEL E IDENTIDADE\nVocê é o Fábio. Sua persona é de um fundador acessível, prático e educado. Você escreve de forma casual e objetiva — como um humano mandando mensagens rápidas pelo celular durante o dia de trabalho — sendo direto e sem enrolação, mas sempre mantendo a educação e o respeito. Você conversa com potenciais clientes via WhatsApp para apresentar uma prévia de site que desenvolveu para eles e agendar um bate-papo rápido de 15 minutos de demonstração diretamente com você.\n* NUNCA diga espontaneamente que você é uma inteligência artificial, robô ou automação.\n* Se o cliente perguntar diretamente se você é um robô, IA ou se é uma mensagem automática, responda utilizando a deflexão abaixo e retorne imediatamente ao fluxo:\n  \"Tô usando o sistema de resposta rápida do WhatsApp pra adiantar nosso contato, mas falo direto com vc por aqui.\"\n\n\n#2 TOM DE VOZ E ESTILO DE COMUNICAÇÃO (REGRAS DE HUMANIZAÇÃO WHATSAPP)\nComporte-se como um humano digitando rápido no WhatsApp: tom informal, direto e natural. Siga estas regras:\n* Zero Emojis: É estritamente proibido usar qualquer emoji.\n* Mensagens Curtas: Limite cada balão a 1 linha, sem formatações complexas.\n* Linguagem Informal: Use contrações naturais (\"tô\", \"pra\", \"vc\", \"vcs\", \"blz\", \"tb\").\n* Entrada Direta: Sem saudações engessadas.\n* Pontuação Relaxada: Dispense o uso de ponto final em frases curtas.\n* Termos Proibidos: Nunca use jargões de IA como \"Aproveita aí\", \"Com certeza\", \"Entendo perfeitamente\" ou \"Fico à disposição\".\n* Pergunta Única: Encerre a sua resposta com apenas UMA pergunta clara.\n\n\n#3 CONTEXTO PRÉVIO DA CONVERSA (CRÍTICO)\nAntes de você (Agente SDR) assumir este atendimento, o lead já recebeu duas mensagens de aproximação:\n* Mensagem 1 enviada: \"Opa, bom dia! Aqui é do whats da [Nome da Empresa]?\"\n* Mensagem 2 enviada: \"Vcs atendem aqui no bairro [Bairro do lead]?\"\nVocê está assumindo a conversa a partir da resposta do lead à Mensagem 2.\nREGRA DE OURO: Leia atentamente a memória da conversa. NUNCA repita perguntas já feitas, NUNCA envie o link de demonstração se você já o enviou anteriormente no histórico, e faça com que cada resposta seja uma continuação lógica do que o lead acabou de dizer.\n\n\n#4 FLUXO DE ATENDIMENTO E PIVOT COMERCIAL (ETAPAS DA CONVERSA)\n\n[ IDENTIDADE E CREDIBILIDADE ]\n- Quem é você: Fábio Coelho, fundador da GetSite (getsite.com.br), especialista em posicionamento local no Google e criação de sites em Porto Alegre.\n- Se o lead perguntar \"quem é você?\", \"qual sua empresa?\" ou pedir referências: Responda com transparência (Ex: \"Me chamo Fábio, sou daqui de Porto Alegre tb e tenho a GetSite (getsite.com.br). A gente ajuda negócios locais a captarem mais clientes pelo Google.\").\n\n[ CONTEXTO DO LEAD ]\nStatus de Site no Google: {{ (() => { \n  const link = $('Buscar Lead no Supabase').first().json.site || ''; \n  const isSocialMedia = /instagram|facebook|fb\\.com|wa\\.me|whatsapp|linktr\\.ee|tiktok|canva\\.site|bit\\.ly|beacons\\.ai|bio\\.site/i.test(link); \n  const isBookingApp = /agendaservico|trinks|appbarber|booksy|cashbarber|bbarber|planetaagenda|suaagenda|simplesagenda|salaozen|avec|fresha|gendo|belasis|superagendador|agendaki|inbarber|bestbarber|barberapp/i.test(link);\n  if (link.length <= 5 || isSocialMedia) return 'Nenhum site';\n  if (isBookingApp) return 'Apenas link de agendamento (' + link + ')';\n  return link; \n})() }}\nID do Lead: {{ $('Buscar Lead no Supabase').first().json.id }}\nLink da Prévia deste Lead: portfolio-cs6f.getsite.com.br/?id={{ $('Buscar Lead no Supabase').first().json.id }}\n\n[ REGRAS DE INTERPRETAÇÃO E ANTI-FALHAS (CRÍTICO) ]\n1. TRAVA ANTI-LOOP DE ROBÔ / URA DE AUTOATENDIMENTO (MUITO IMPORTANTE):\n   - Se a mensagem do lead for um menu automático de robô/URA (ex: \"Seja bem-vindo ao nosso autoatendimento\", \"Digite o número de uma das opções: 1 - Agendamento\", \"Muitas mensagens foram trocadas\", \"Estamos fora do horário de atendimento\") E você AINDA NÃO fez a Etapa 1 (Pivot): faça a Etapa 1 uma única vez.\n   - Porém, se você JÁ FEZ a Etapa 1 (ou já enviou o link) no histórico da conversa e o lead continuar respondendo APENAS com mensagens automáticas repetidas de robô/URA sem nenhum texto humano real: PARE IMEDIATAMENTE de responder e retorne exclusivamente a palavra: [SILENCIO]\n2. GÍRIA \"JÁ FALAMOS\" / \"TÔ EM ATENDIMENTO\": Se o lead humano responder \"Já falamos\", \"Já te chamo\", \"Tô na correria\" ou \"Mais tarde olho\", facilite já deixando o link (se ainda não enviou): \"Tranquilo, bom trabalho aí! Já vou deixar o link da prévia aqui pra vc dar uma olhada quando tiver um tempinho: portfolio-cs6f.getsite.com.br/?id={{ $('Buscar Lead no Supabase').first().json.id }} || Como é uma prévia demonstrativa do site, sai do ar amanhã à noite, blz?\"\n3. RECEPCIONISTA / \"NÃO É COMIGO\": Se disserem \"essa parte não é comigo\" ou \"vou passar pro responsável\", nunca saia sem deixar o link: \"Show! Pra facilitar, já vou deixar o link de como ficou o modelo aqui, aí vc já encaminha junto pra ele dar uma olhada: portfolio-cs6f.getsite.com.br/?id={{ $('Buscar Lead no Supabase').first().json.id }}\"\n4. OBJEÇÃO \"JÁ TEMOS SITE\" (Quando o Status era 'Nenhum site'): Explique que não está vinculado no Google: \"Ah, boa! É que ele não tá aparecendo lá no Perfil Google de vcs, por isso achei que não tinham e acabei montando essa versão nova. || Quer que eu te mande o link aqui sem compromisso só pra vc comparar com o atual?\"\n5. DESPEDIDA E DISPENSA EDUCADA (\"OBRIGADO, AMIGO\"):\n   - Se o cliente recusar (\"não tenho interesse\", \"no momento não\") OU se, após você apresentar a ideia/convite de reunião, ele responder apenas \"Obrigado\", \"Obrigado, amigo\" ou \"Valeu\" (sem escolher horário e sem fazer perguntas), entenda isso como uma recusa educada.\n   - Ação: Despeça-se uma única vez: \"Tranquilo, agradeço a atenção! Bons negócios por aí.\"\n   - Se o cliente responder qualquer coisa como \"ok\", \"obrigado\", \"igualmente\" ou \"valeu\" após a sua despedida, responda exclusivamente com a palavra: [SILENCIO]\n\nETAPA 1: O PIVOT (A Revelação)\nO lead acabou de confirmar o bairro (ou perguntou \"como posso ajudar?\" / \"quer agendar?\").\n- Se o lead apenas confirmou o bairro (\"Sim\", \"Confere\", \"Isso mesmo\"), inicie com \"Bacana\".\n- Se o lead perguntou \"O que está procurando?\" ou \"Gostaria de agendar um horário?\", inicie esclarecendo de forma simpática: \"Opa, na verdade não era isso não, sou daqui de POA tb.\" e emende o cenário abaixo.\nSua fala a seguir depende do \"Status de Site no Google\" fornecido acima:\n- CENÁRIO A (Nenhum site):\n\"Bacana. Então, eu tava pesquisando vcs no Google e vi que não tem site cadastrado lá, né? || Daí tomei a liberdade de desenvolver um modelo de site profissional pra vcs. || Quer dar uma olhada como ficou?\"\n- CENÁRIO B (Apenas link de agendamento):\n\"Bacana. Eu vi lá no Google que vcs usam link de agendamento, mas ainda não têm um site próprio pra posicionar nas pesquisas, né? || Daí tomei a liberdade de desenvolver um modelo de site completo pra vcs. || Quer dar uma olhada como ficou?\"\n- CENÁRIO C (Com site próprio):\n\"Bacana. Eu dei uma olhada no site atual de vcs e notei uns pontos que tão fazendo vcs perderem clientes nas buscas do Google. || Daí tomei a liberdade de desenvolver uma versão nova e otimizada pra vcs. || Quer dar uma olhada como ficou?\"\n\nETAPA 2: ENVIAR O LINK COM URGÊNCIA SUAVE\nAssim que o lead aceitar ver o modelo (\"Pode mandar\", \"Sim\", \"Quero ver\"):\n- Envie o link: \"Segue o link: portfolio-cs6f.getsite.com.br/?id={{ $('Buscar Lead no Supabase').first().json.id }} || Só um detalhe, como é uma prévia demonstrativa do site, sai do ar amanhã à noite, blz?\"\n- REGRA CRÍTICA: Aguarde o lead responder após ver o link. NUNCA envie o convite de reunião junto com o link na mesma rodada.\n\nETAPA 3: DÚVIDAS DE PREÇO / COMO FUNCIONA (ANTES vs. DEPOIS DO LINK)\nSe o lead perguntar \"Qual o valor?\", \"Quanto custa?\" ou \"Como funciona?\":\n- CASO 1 (Você AINDA NÃO enviou o link da prévia no histórico da conversa):\n  Responda que antes de falar de valores prefere mostrar o que já deixou pronto sem compromisso, e envie o link da Etapa 2 imediatamente.\n- CASO 2 (Você JÁ ENVIOU o link da prévia anteriormente na conversa e o lead gostou / perguntou o valor):\n  PROIBIDO enviar o link novamente! Acione a ferramenta `Playbook de Objeções` para referência, mas responda explicando que o valor é super acessível, que normalmente fica em torno de 450 e 600 Reais, depende apenas de ver os ajustes necessários, afinal o site já está pronto, e convide imediatamente para o bate-papo rápido de 15 min (Etapa 4), consultando antes a ferramenta `Sub - Consultar Agenda`.\n  Exemplo para o Caso 2: \"Que bom que curtiu! O funcionamento é bem simples, a gente entrega ele pronto no seu domínio e já integrado com seu WhatsApp e agenda. || Como o valor depende só de ver quais ajustes vc quer, consigo te explicar e passar o orçamento num bate-papo rápido de 15 min pelo WhatsApp mesmo. || Consegue falar amanhã à tarde, tipo às [HORÁRIO 1] ou [HORÁRIO 2]?\"\n\nETAPA 4: A CHAMADA DE AÇÃO (Convite para Bate-Papo)\nSomente APÓS ter enviado o link na Etapa 2 e o lead reagir positivamente:\n- Acione OBRIGATORIAMENTE a ferramenta `Sub - Consultar Agenda` ANTES de sugerir horários.\n- Ofereça sempre 2 horários exatos e específicos (ex: \"às 14:00 ou 15:30\"), nunca um intervalo aberto (\"entre 13:30 e 17:30\").\n- Exemplo: \"Queria te mostrar como vcs podem usar o site pra captar mais clientes no Google. Papo rápido de 15 min. || Consegue me atender numa chamada de WhatsApp amanhã à tarde, tipo às [HORÁRIO LIVRE 1] ou [HORÁRIO LIVRE 2]?\"\n- PROIBIDO pedir o nome do lead nesta etapa! Primeiro confirme o dia e horário.\n\nETAPA 5: COLETA DO NOME E AGENDAMENTO\n1. Somente DEPOIS que o lead escolher claramente um dia e horário (ex: \"Pode ser às 15h\", \"Amanhã às 14h tá bom\"):\n   - Se você ainda não sabe o nome da pessoa com quem está falando, pergunte apenas: \"Fechado! Qual o seu nome pra eu deixar anotado aqui na agenda?\"\n2. Assim que tiver a data, o horário escolhido e o nome do lead:\n   - Acione a ferramenta `Sub - Agendar Reunião` enviando `data_solicitada` (YYYY-MM-DD), `horario_solicitado` (HH:MM) e `nome`.\n   - Envie a confirmação: \"Fechado então [Nome]. Amanhã às [Horário] te dou um toque aqui pelo WhatsApp. Até lá!\"\n\n\n#5 REGRAS CRÍTICAS DE DATA E FERRAMENTAS\n1. Data Atual de Referência: {{ $now.format('yyyy-MM-dd') }} (Dia da semana: {{ $now.setZone('America/Sao_Paulo').weekdayLong }})\n2. Regra Restrita de Horários e Dias Úteis:\n   - Reuniões ocorrem EXCLUSIVAMENTE à tarde (entre 13:30 e 17:30), de Segunda a Sexta-feira.\n   - PROIBIDO agendar para o mesmo dia de hoje. O prazo mínimo é o próximo dia útil (D+1).\n   - Se hoje for Sexta-feira, \"amanhã\" não pode ser usado: sugira horários para a próxima Segunda-feira.\n   - NUNCA marque reuniões no Sábado ou Domingo.\n3. Formato de Envio para `Sub - Agendar Reunião`:\n   - `data_solicitada`: Formato estrito ISO \"YYYY-MM-DD\".\n   - `horario_solicitado`: Formato estrito 24h \"HH:MM\" (ex: 15:00).\n4. Cancelamento de Reuniões:\n   - Se o lead pedir para desmarcar ou reagendar, acione `Sub - Cancelar Reunião` imediatamente e pergunte: \"Feito, já cancelei aqui. Quer já deixar agendado pra outro dia?\"\n\n\n#6 REGRAS DE FORMATAÇÃO E PICOTAGEM (MUITO IMPORTANTE)\n* MENSAGENS EM MÚLTIPLOS BALÕES (PICOTADO): Nunca envie textos longos em um único balão. Divida sua resposta em 2 ou 3 frases curtas usando EXATAMENTE o separador \"||\" entre elas.\n* Exceção: Quando a resposta for `[SILENCIO]`, envie apenas `[SILENCIO]` sem separadores.\n\n\n#7 FORMATO OBRIGATÓRIO DA RESPOSTA FINAL\nVocê DEVE responder EXCLUSIVAMENTE em formato JSON válido, respeitando a estrutura abaixo:\n{\n  \"resposta_whatsapp\": \"Sua mensagem formatada para o cliente aqui\",\n  \"elogiou\": false,\n  \"descartado\": false\n}\n\nRegras booleanas (true/false):\n- elogiou: Retorne true SE o lead elogiar seu trabalho, o modelo do site ou fizer menção muito positiva.\n- descartado: Retorne true SE o lead der uma negativa clara, disser que não tem interesse ou encerrar as negociações definitivamente (ex: \"não quero\", \"não tenho interesse\").\n\n# CONTEXTO DE FOLLOW-UP AUTOMÁTICO ATUAL\nA etapa atual de follow-up deste lead é: {{ $('Buscar Lead no Supabase').first().json.etapa_followup || 0 }}\n- Se for 2: Cobramos retorno perguntando se ele desistiu de receber de 5 a 12 clientes por semana pelo Google.\n- Se for 3: Acabamos de enviar a frase \"Esqueci de te avisar um detalhe importante sobre o teu site..\" e apagamos de propósito para gerar curiosidade. Se o lead perguntar o que foi apagado, diga que é sobre como ele pode alcançar 5 a 12 clientes a mais, mas que prefere explicar no bate-papo, e puxe para a reunião.\n- Se for 4: Acabamos de ligar para ele e enviar um áudio de visualização única avisando que o site demonstrativo dele está no ar.\n- Se for 7 ou 10: Enviamos um vídeo avisando que vamos derrubar o site demonstrativo dele hoje para liberar servidor, gerando escassez (FOMO).",
+          "maxIterations": 15,
+          "returnIntermediateSteps": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -256,
+        896
+      ],
+      "id": "48b216b6-604b-4ff7-9892-0e4a54eabb21",
+      "name": "Agente SDR (OpenAI)",
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/presence",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Buscar Lead no Supabase').first().json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"presence\": \"composing\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1168,
+        656
+      ],
+      "id": "13380f9c-6618-4b0b-98b1-3239995e355d",
+      "name": "Uazapi - Ativar \"Digitando\""
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 6) + 4 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1392,
+        656
+      ],
+      "id": "080e9884-019d-4bb1-9f5a-6e50ef9742fb",
+      "name": "Tempo de Digitação (4 a 9s)",
+      "webhookId": "fdd8d5cc-ccbc-4e62-8c77-a645bad0c9f7"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2b0db65e-3f54-4ac6-b30f-0e7bc097e360",
+              "leftValue": "={{ JSON.stringify($json.labels || $json.payload?.[0]?.labels || $json.tags || []).toLowerCase() }}",
+              "rightValue": "humano",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1184,
+        896
+      ],
+      "id": "2d2a0d0f-e106-442f-b792-1e58019c1086",
+      "name": "Tem Tag Humano?"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -512,
+        1120
+      ],
+      "id": "73acab44-efbd-4810-a166-f9057db380c1",
+      "name": "OpenAI Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "yDUFHel1rtdFJeZx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Buscar Lead no Supabase').item.json.whatsapp }}",
+        "contextWindowLength": 25
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        -384,
+        1120
+      ],
+      "id": "cab5d4ba-0e15-40f6-b1da-97c0a1e16bea",
+      "name": "Memory"
+    },
+    {
+      "parameters": {
+        "description": "Cria e confirma uma reunião no Google Calendar.\n\nAcione imediatamente quando o lead já tiver informado a data, o horário e o seu nome.\n\nIMPORTANTE: Nunca acione esta ferramenta passando a data de hoje. O agendamento só é permitido para datas a partir de amanhã.",
+        "workflowId": {
+          "__rl": true,
+          "value": "3H14nn5Rdh6GomHg",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/3H14nn5Rdh6GomHg",
+          "cachedResultName": "TOOL - Agendar Reunião"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nome": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('nome', ``, 'string') }}",
+            "telefone": "={{ $('Buscar Lead no Supabase').item.json.whatsapp }}",
+            "data_solicitada": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('data_solicitada', `A data combinada com o lead para a reunião, estritamente no formato YYYY-MM-DD (ex: 2026-09-25). Não adicione nenhum outro texto.`, 'string') }}",
+            "horario_solicitado": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('horario_solicitado', `O horário exato combinado para a reunião, estritamente no formato HH:MM (ex: 15:30). Não adicione nenhum outro texto.`, 'string') }}",
+            "nome_negocio": "={{ $('Buscar Lead no Supabase').item.json.nome_negocio }}",
+            "supabase_id": "={{ $('Buscar Lead no Supabase').item.json.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nome",
+              "displayName": "nome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telefone",
+              "displayName": "telefone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            },
+            {
+              "id": "data_solicitada",
+              "displayName": "data_solicitada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "horario_solicitado",
+              "displayName": "horario_solicitado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "nome_negocio",
+              "displayName": "nome_negocio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "supabase_id",
+              "displayName": "supabase_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "link_notion",
+              "displayName": "link_notion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -256,
+        1120
+      ],
+      "id": "aa8d6706-efe0-4b8a-8f9a-c77ee59bfba4",
+      "name": "Sub - Agendar Reunião"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ String($('ESTEIRA 2 - Inbounce (Webhook)').first().json.body.message.messageType || $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body.message.mediaType || $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body.message.type || '').toLowerCase() }}",
+              "operation": "contains",
+              "value2": "audio"
+            }
+          ]
+        }
+      },
+      "id": "f0ff4d4e-9f03-4105-8bf3-20485e0f958f",
+      "name": "É Áudio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -2752,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "pt"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -2080,
+        800
+      ],
+      "id": "85b6a068-b11d-4238-abaf-d8061b2266ae",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "yDUFHel1rtdFJeZx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Recupera a string Base64 do nó anterior (Baixar Áudio)\nlet base64 = $input.item.json.base64Data || $input.item.json.base64;\n\nif (!base64) {\n  throw new Error('Base64 não encontrado na resposta da Uazapi!');\n}\n\n// Converte a string Base64 em um Buffer binário real de áudio\nconst buffer = Buffer.from(base64, 'base64');\n\n// Cria a propriedade binária \"data\" formatada corretamente para o n8n e OpenAI\nconst binaryData = await this.helpers.prepareBinaryData(buffer, 'audio.ogg', 'audio/ogg');\n\nreturn {\n  json: $input.item.json,\n  binary: {\n    data: binaryData\n  }\n};"
+      },
+      "id": "9fc6a941-82ce-4d80-bd3e-6994c3ccf739",
+      "name": "Converter Áudio Binário",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2304,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Use esta ferramenta sempre que o lead pedir para desmarcar ou cancelar uma reunião existente.",
+        "workflowId": {
+          "__rl": true,
+          "value": "N6ChHsZWg75xW3Rt",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/N6ChHsZWg75xW3Rt",
+          "cachedResultName": "TOOL - Cancelar Reunião"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telefone": "={{ $('Buscar Lead no Supabase').item.json.whatsapp }}"
+          },
+          "matchingColumns": [
+            "telefone"
+          ],
+          "schema": [
+            {
+              "id": "telefone",
+              "displayName": "telefone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "link_notion",
+              "displayName": "link_notion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -128,
+        1120
+      ],
+      "id": "2833d6aa-4953-4760-8c9c-fc70f85733dd",
+      "name": "Sub - Cancelar Reunião"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/markread",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": [\n    \"{{ $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.message.messageid }}\"\n  ]\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Marcar como Lido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -736,
+        896
+      ],
+      "id": "3fce71d2-2545-4346-8cf6-65c07fc825b3"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Buscar Lead no Supabase').first().json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "msg2_enviada"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1632,
+        512
+      ],
+      "id": "f3af54d0-dbc4-483b-b840-74740066717e",
+      "name": "Atualizar Status para \"msg2_enviada\"",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Buscar Lead no Supabase').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "em_conversacao"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "last_interaction_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1856,
+        896
+      ],
+      "id": "304860bf-894a-4168-bffc-595ef7d61cf9",
+      "name": "Atualizar Status para \"em_conversacao\"",
+      "retryOnFail": true,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        96,
+        1328
+      ],
+      "id": "70f6eb23-b764-4ff3-8ff7-e9f51091747c",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "yDUFHel1rtdFJeZx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Use esta ferramenta sempre que o lead apresentar dúvidas, objeções ou resistências sobre preço, tempo, concorrência ou falta de interesse, para buscar o argumento de vendas oficial.",
+        "tableName": {
+          "__rl": true,
+          "value": "objecoes",
+          "mode": "list",
+          "cachedResultName": "objecoes"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        16,
+        1120
+      ],
+      "id": "f0830b8b-e1fa-4285-ae4d-c0ddf502e728",
+      "name": "Playbook de Objeções",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Captura o output bruto do Agente\nlet outputRaw = $input.item.json.output;\nlet textoFinal = \"\";\n\ntry {\n    let obj = typeof outputRaw === 'string' ? JSON.parse(outputRaw) : outputRaw;\n    textoFinal = obj.resposta_whatsapp || \"\";\n} catch(e) {\n    textoFinal = outputRaw?.resposta_whatsapp || String(outputRaw || \"\");\n}\n\n// Garante que o texto seja uma string e remove quebras de linha indesejadas\ntextoFinal = String(textoFinal).replace(/\\\\n/g, \" \").replace(/\\n/g, \" \").trim();\n\n// TRAVA CRÍTICA: Se a IA retornar [SILENCIO] ou vazio, encerra o fluxo sem enviar nada na Uazapi\nif (!textoFinal || /\\[?\\s*SIL[EÊ]NCIO\\s*\\]?/i.test(textoFinal)) {\n    return [];\n}\n\n// Picota a mensagem apenas nos delimitadores \"||\"\nlet baloes = textoFinal\n    .split(\"||\")\n    .map(frase => frase.trim())\n    .filter(frase => frase.length > 0);\n\n// Retorna cada pedaço limpo separadamente para o Loop\nreturn baloes.map(frase => {\n    return {\n        json: {\n            texto_balao: frase\n        }\n    };\n});"
+      },
+      "id": "bf5b84ed-ae8b-4d67-b928-e847e5cdec33",
+      "name": "Picotar Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/presence",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Buscar Lead no Supabase').first().json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"presence\": \"composing\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -2304,
+        512
+      ],
+      "id": "3632f398-20a6-4fdd-a662-9db973139ca0",
+      "name": "Uazapi - Ativar \"Digitando\" Esteira 2"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (7 - 2 + 1)) + 2 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        944,
+        656
+      ],
+      "id": "1730dc15-1e20-4696-9f8d-8bf3e20b9137",
+      "name": "Pausa de 2 a 7 Seg",
+      "webhookId": "38513747-e403-4518-9479-95428f2c2a00"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (437 - 67 + 1)) + 67 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -3200,
+        0
+      ],
+      "name": "Pausa de 1 a 7 Min",
+      "id": "a81127ac-f12a-47f0-a21a-624f8e17a661",
+      "webhookId": "834bef5d-3452-4346-961d-4de3b838e87c"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 6) + 4 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2080,
+        512
+      ],
+      "id": "90fcee7b-02c6-45f8-9750-56350cdfdb27",
+      "name": "Tempo de Digitação (4 a 9s) Esteira 2",
+      "webhookId": "fdd8d5cc-ccbc-4e62-8c77-a645bad0c9f7"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/markread",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": [\n    \"{{ $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body.message.messageid }}\"\n  ]\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Marcar Msg1 como Lido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -2752,
+        512
+      ],
+      "id": "6912885a-c9da-44f3-aeea-f78a14446b3e"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        720,
+        720
+      ],
+      "id": "569cac08-b02c-4c74-b8d7-8916a5225628",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.isInWhatsapp }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "É WhatsApp Válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2080,
+        48
+      ],
+      "id": "ef97b0df-0aac-4fd5-889b-2632d3bac7af"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Processar Lead por Lead').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "msg1_enviada"
+            },
+            {
+              "fieldId": "notion_page_id",
+              "fieldValue": "={{ $('Notion - Criar Contato').item.json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1184,
+        112
+      ],
+      "id": "a80c8d93-dd78-48ea-9a15-de9942b541c3",
+      "name": "Atualizar Status para \"msg1_enviada\"",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Processar Lead por Lead').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "sem_whatsapp"
+            }
+          ]
+        }
+      },
+      "name": "Atualizar Status para \"sem_whatsapp\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1856,
+        144
+      ],
+      "id": "96f58611-3662-4958-a37b-6f4ec4f3c864",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Buscar Lead no Supabase').item.json.notion_page_id }}",
+          "__regex": "^([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|select",
+              "selectValue": "3. Em Conversação"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        -960,
+        896
+      ],
+      "id": "0921b836-7a05-40fa-a9cc-3570b5edbd61",
+      "name": "Notion - Mover para \"Em Conversação\"",
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $json.telefone }}"
+      },
+      "id": "ac2bc2b1-3b5b-4c0d-a649-e307fb4f1af4",
+      "name": "Redis - Limpar Fila",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -2976,
+        896
+      ],
+      "credentials": {
+        "redis": {
+          "id": "LCh1cGCzLCaIGjFU",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('CAMINHO B (Msg3 em Diante) - Preparar Dados para Redis').item.json.telefone }}",
+        "messageData": "={{ $('CAMINHO B (Msg3 em Diante) - Preparar Dados para Redis').item.json.mensagem }}",
+        "tail": true
+      },
+      "id": "2816a983-b2c1-4203-9b87-aa91e253d24b",
+      "name": "Redis - Empilhar Mensagem Esteira 3",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -4096,
+        992
+      ],
+      "credentials": {
+        "redis": {
+          "id": "LCh1cGCzLCaIGjFU",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "mensagens",
+        "key": "={{ $('CAMINHO B (Msg3 em Diante) - Preparar Dados para Redis').item.json.telefone }}",
+        "options": {}
+      },
+      "id": "74ae98a6-b30e-4792-956c-d131a66989b9",
+      "name": "Redis - Ler Fila Esteira 3",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -3648,
+        992
+      ],
+      "credentials": {
+        "redis": {
+          "id": "LCh1cGCzLCaIGjFU",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d7ecd13e-c602-49c5-979a-98f59089e930",
+              "leftValue": "={{ $json.mensagens?.slice(-1)[0] }}",
+              "rightValue": "={{ $('CAMINHO B (Msg3 em Diante) - Preparar Dados para Redis').item.json.mensagem }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3424,
+        992
+      ],
+      "id": "5a973313-0605-4e5c-b8b8-969fdfd556e7",
+      "name": "Validar Última Execução - Esteira 3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d7ecd13e-c602-49c5-979a-98f59089e930",
+              "leftValue": "={{ $json.mensagens?.slice(-1)[0] }}",
+              "rightValue": "={{ $('CAMINHO A (Msg2) - Preparar Dados para Redis').item.json.mensagem }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3424,
+        608
+      ],
+      "id": "82cc8062-5b04-4ee9-ae2c-8770f90f53d1",
+      "name": "Validar Última Execução - Esteira 2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "mensagem_unificada",
+              "name": "mensagem_unificada",
+              "value": "={{ $json.mensagens.join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "telefone",
+              "name": "telefone",
+              "value": "={{ $('CAMINHO B (Msg3 em Diante) - Preparar Dados para Redis').item.json.telefone }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2ddcf6ca-d1cb-42ff-b221-17f75cf24834",
+      "name": "Unificar Mensagens (Join) - Esteira 3",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3200,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $json.telefone }}"
+      },
+      "id": "d68af6b9-ed6a-4446-abd4-f1026afcfb79",
+      "name": "Redis - Limpar Fila Esteira 2",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -2976,
+        512
+      ],
+      "credentials": {
+        "redis": {
+          "id": "LCh1cGCzLCaIGjFU",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "mensagem_unificada",
+              "name": "mensagem_unificada",
+              "value": "={{ $json.mensagens.join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "telefone",
+              "name": "telefone",
+              "value": "={{ $('CAMINHO A (Msg2) - Preparar Dados para Redis').item.json.telefone }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "599b3358-fff4-473e-85fd-b081b04638b0",
+      "name": "Unificar Mensagens (Join) Esteira 2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3200,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "mensagens",
+        "key": "={{ $('CAMINHO A (Msg2) - Preparar Dados para Redis').item.json.telefone }}",
+        "options": {}
+      },
+      "id": "1d9e1f6e-0730-4ab1-a0fd-9fb7ea05d5e4",
+      "name": "Redis - Ler Fila Esteira 2",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -3648,
+        608
+      ],
+      "credentials": {
+        "redis": {
+          "id": "LCh1cGCzLCaIGjFU",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('CAMINHO A (Msg2) - Preparar Dados para Redis').item.json.telefone }}",
+        "messageData": "={{ $('CAMINHO A (Msg2) - Preparar Dados para Redis').item.json.mensagem }}",
+        "tail": true
+      },
+      "id": "8665abb6-e7d7-4e1b-a8fc-c724fd4407a6",
+      "name": "Redis - Empilhar Mensagem Esteira 2",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -4096,
+        608
+      ],
+      "credentials": {
+        "redis": {
+          "id": "LCh1cGCzLCaIGjFU",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c5d08bb1-1875-4ad5-88ea-fcce2d0e5f22",
+              "name": "limite_diario",
+              "value": 24,
+              "type": "number"
+            },
+            {
+              "id": "972faa4f-20b2-486d-908e-d1cae5927c83",
+              "name": "segmento_alvo",
+              "value": "*Barbearia*",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3872,
+        288
+      ],
+      "name": "Painel de Controle Diário",
+      "id": "a6352893-dfd3-492a-9fa4-3465ef1c896e"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "whatsapp",
+              "condition": "like",
+              "keyValue": "={{ '%' + (String($('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.chat?.wa_chatid || $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.phone || $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.chat?.phone || $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.from || '').split('@')[0].replace(/[^0-9]/g, '').slice(-8) || '000000000000') + '%' }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -4768,
+        992
+      ],
+      "id": "7ceb837f-0a58-4339-a4aa-1f138feedbaf",
+      "name": "Buscar Lead no Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "e2-rule",
+                    "leftValue": "={{ /* ROTA ESTEIRA 2 (Blindada): Encaminha para a Esteira 2 se o status for msg1_enviada, a mensagem for do cliente e a IA não estiver pausada */ String($('Buscar Lead no Supabase').first().json.status === 'msg1_enviada' && $('Buscar Lead no Supabase').first().json.ai_paused !== true && $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body?.message?.fromMe !== true) }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Esteira 2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "e3-rule",
+                    "leftValue": "={{ /* ROTA ESTEIRA 3 (Blindada): Encaminha se o status permitir, for mensagem do cliente e a IA não estiver pausada */ String((['msg2_enviada', 'em_conversacao', 'agendado', 'descartado'].includes($('Buscar Lead no Supabase').first().json.status)) && $('Buscar Lead no Supabase').first().json.ai_paused !== true && $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body?.message?.fromMe !== true) }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Esteira 3"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "pausa-rule",
+                    "leftValue": "={{ /* ROTA PAUSA HUMANA: Encaminha se a mensagem foi enviada pelo próprio atendente e a IA ainda não estava pausada */ String($('ESTEIRA 2 - Inbounce (Webhook)').first().json.body?.message?.fromMe === true && $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body?.message?.wasSentByApi !== true && $('Buscar Lead no Supabase').first().json.ai_paused !== true) }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Pausa Humana"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2665883c-b114-4c1c-a2e9-1f508ef6fb4b",
+      "name": "Roteador Central",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -4544,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "ai_paused",
+              "fieldValue": "={{ true }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -4320,
+        1184
+      ],
+      "id": "2160ff76-e567-49c7-a1d8-133cad3afa63",
+      "name": "Pausar IA no Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Processar Lead por Lead').item.json.whatsapp }}\",\n  \"text\": \"{{ $('Gerador da Msg1 (Spintax)').item.json.mensagem_whatsapp }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1632,
+        -48
+      ],
+      "name": "Uazapi - Disparo Msg1",
+      "id": "854433a6-36fa-493a-a1e5-45819f1853ea",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Buscar Lead no Supabase').first().json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"{{ $('Gerador da Msg2 (Spintax)').item.json.mensagem_whatsapp }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1856,
+        512
+      ],
+      "id": "ba8fdcfb-1f0b-4b20-b52e-d228c2349e9b",
+      "name": "Uazapi - Disparo Msg2"
+    },
+    {
+      "parameters": {
+        "url": "=https://chat.getsite.com.br/api/v1/accounts/1/contacts/{{ $('Chatwoot - Buscar Contato - Esteira 2').first().json.payload?.[0]?.id }}/conversations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Chatwoot - Buscar Conversa - Esteira 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1184,
+        512
+      ],
+      "id": "1decbcf6-c85c-47dc-a3cf-9cbce53bcb21",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://chat.getsite.com.br/api/v1/accounts/1/conversations/{{ $('Chatwoot - Buscar Conversa - Esteira 2').first().json.payload?.[0]?.id }}/labels",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"labels\": [\"bot\"]\n}",
+        "options": {}
+      },
+      "name": "Chatwoot - Tag Bot - Esteira 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -960,
+        512
+      ],
+      "id": "6a67d2a9-2661-4494-b335-d4a94aff3a7b",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://chat.getsite.com.br/api/v1/accounts/1/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $('Buscar Lead no Supabase').first().json.whatsapp.replace(/[^0-9]/g, '') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Chatwoot - Buscar Contato - Esteira 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1408,
+        512
+      ],
+      "id": "05fdf204-484d-4559-bca0-6c304c0c60af",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://chat.getsite.com.br/api/v1/accounts/1/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $('Buscar Lead no Supabase').item.json.whatsapp.replace(/[^0-9]/g, '') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1632,
+        896
+      ],
+      "id": "41cf7ed1-f83b-44a3-a728-223c0714ea18",
+      "name": "Chatwoot - Buscar Contato - Esteira 3",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://chat.getsite.com.br/api/v1/accounts/1/contacts/{{ $('Chatwoot - Buscar Contato - Esteira 3').item.json.payload?.[0]?.id }}/conversations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1408,
+        896
+      ],
+      "id": "6d435f46-1177-450f-a81f-0afeeab04ff2",
+      "name": "Chatwoot - Buscar Conversa - Esteira 3",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://chat.getsite.com.br/api/v1/accounts/1/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.whatsapp.replace(/[^0-9]/g, '') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Chatwoot - Buscar Contato - Esteira Pausa Humana",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -4096,
+        1184
+      ],
+      "id": "a92a94c1-f461-4ca3-9a2b-bc08263e1e2d",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://chat.getsite.com.br/api/v1/accounts/1/contacts/{{ $json.payload?.[0]?.id }}/conversations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Chatwoot - Buscar Conversa - Esteira Pausa Humana",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -3872,
+        1184
+      ],
+      "id": "c8da7bd4-580b-4c57-973b-1c79cdd95f44",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://chat.getsite.com.br/api/v1/accounts/1/conversations/{{ $json.payload?.[0]?.id }}/labels",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"labels\": [\n    \"humano\"\n  ]\n}",
+        "options": {}
+      },
+      "id": "34fad2f7-41ee-40e4-b8b7-e4631a69593b",
+      "name": "Chatwoot - Tag Humano - Esteira Pausa Humana",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -3648,
+        1184
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "htwMxdcoNFGU2W4y",
+          "name": "Chatwoot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"number\": \"5551980250516\",\n  \"text\": \"✅ *Fila Diária Site Concluída!*\\n\\nTodos os disparos do dia foram processados com sucesso no n8n.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -2528,
+        -176
+      ],
+      "id": "f767111f-fbfb-482e-8bed-882ffe1c9111",
+      "name": "Uazapi - Notificação Fim de Fila",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/chat/check",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"numbers\": [\n    \"{{ $('Processar Lead por Lead').item.json.whatsapp }}\"\n  ]\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Checar se tem WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2304,
+        48
+      ],
+      "id": "4a6d6eeb-8336-42d6-9a61-1d0e10d3d314"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/download",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body.message.messageid }}\",\n  \"return_base64\": true,\n  \"generate_mp3\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -2528,
+        800
+      ],
+      "id": "2dc96908-af94-4658-8f3d-97d8fc21c10d",
+      "name": "Uazapi - Baixar Áudio"
+    },
+    {
+      "parameters": {
+        "content": "## Disparo Msg 1",
+        "height": 224,
+        "width": 224
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1696,
+        -112
+      ],
+      "typeVersion": 1,
+      "id": "0d80188d-9de0-4b5f-8718-3568f61c5359",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Disparo Msg 2",
+        "height": 224,
+        "width": 224
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1920,
+        448
+      ],
+      "typeVersion": 1,
+      "id": "4703ee7c-f3cf-4fb9-8283-ecb583a5758b",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Disparo Msg3 em Diante",
+        "height": 224,
+        "width": 224
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1552,
+        656
+      ],
+      "typeVersion": 1,
+      "id": "cde3250d-4476-4f6e-8b36-4e59526156be",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    \"number\": String($('Buscar Lead no Supabase').first().json.whatsapp).replace(/[^0-9]/g, ''),\n    \"text\": (function() {\n      let texto = $('Loop Over Items').item.json.texto_balao;\n      try {\n        return JSON.parse(texto).resposta_whatsapp || texto;\n      } catch(e) {\n        return texto;\n      }\n    })()\n  })\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1616,
+        720
+      ],
+      "id": "a1619d3f-6e77-4a37-bf93-fed50d92cf63",
+      "name": "Uazapi - Disparo SDR"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/markread",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": [\n    \"{{ $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body.message.messageid }}\"\n  ]\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Marcar Msg1 como Lido1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -3200,
+        704
+      ],
+      "id": "9012b411-f0a4-4e25-8e8f-405f59b434aa"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/markread",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $if($('Uazapi - Token (Esteira 1)').isExecuted, $('Uazapi - Token (Esteira 1)').first().json.token, $('Uazapi - Token (Webhook Central)').first().json.token) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": [\n    \"{{ $('ESTEIRA 2 - Inbounce (Webhook)').first().json.body.message.messageid }}\"\n  ]\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Marcar Msg1 como Lido2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -3200,
+        1088
+      ],
+      "id": "23e756ae-7300-4792-9bcd-d79d11e0610a"
+    },
+    {
+      "parameters": {
+        "description": "Use esta ferramenta OBRIGATORIAMENTE antes de sugerir, oferecer ou confirmar qualquer horário de reunião ao cliente. Envie a data desejada para verificar a disponibilidade real da agenda.",
+        "workflowId": {
+          "__rl": true,
+          "value": "Y2j8K9i1XpBG2IU0",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/Y2j8K9i1XpBG2IU0",
+          "cachedResultName": "TOOL - Consultar Agenda"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "data_consulta": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('data_consulta', `A data que o lead quer consultar no formato YYYY-MM-DD`, 'string') }}"
+          },
+          "matchingColumns": [
+            "data_consulta"
+          ],
+          "schema": [
+            {
+              "id": "data_consulta",
+              "displayName": "data_consulta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        304,
+        1120
+      ],
+      "id": "93a2166d-d3ce-49e9-ae48-212c4c52cd88",
+      "name": "Sub - Consultar Agenda"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.random() < 0.9 ? Math.floor(Math.random() * 11) + 20 : Math.floor(Math.random() * 31) + 60 }}"
+      },
+      "id": "4497d076-816b-4632-a3c7-a5f72e53515b",
+      "name": "Pausa Debounce - Esteira 3 (90% 20-30seg e 10% 60-90seg)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -3872,
+        992
+      ],
+      "webhookId": "debounce_wait_webhook"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * (187 - 67 + 1)) + 67 }}"
+      },
+      "id": "4b2d8d48-ff48-4ea1-ba30-f93dab78569f",
+      "name": "Pausa Debounce - Esteira 2 (1 a 3 min)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -3872,
+        608
+      ],
+      "webhookId": "debounce_wait_webhook"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c2",
+                    "leftValue": "={{ $json.descartado }}",
+                    "rightValue": "={{ true }}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Lead Descartado"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.elogiou }}",
+                    "rightValue": "={{ true }}",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Recebeu Elogio"
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": true
+        }
+      },
+      "name": "Roteador CRM",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        720,
+        1040
+      ],
+      "id": "da9ad872-9f67-4d8d-9774-f1986c5da321"
+    },
+    {
+      "parameters": {
+        "jsCode": "let outputRaw = $input.item.json.output;\nlet elogiou = false;\nlet descartado = false;\ntry {\n  let obj = typeof outputRaw === 'string' ? JSON.parse(outputRaw) : outputRaw;\n  elogiou = obj.elogiou === true || obj.elogiou === \"true\";\n  descartado = obj.descartado === true || obj.descartado === \"true\";\n} catch(e) {}\nreturn [{ json: { elogiou: elogiou, descartado: descartado, notion_page_id: $('Buscar Lead no Supabase').first().json.notion_page_id, supabase_id: $('Buscar Lead no Supabase').first().json.id } }];"
+      },
+      "name": "Verificar IA (buscar Elogio e Negativa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        1040
+      ],
+      "id": "9fcea98f-cad1-45f8-8b66-f6561e45f83d"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $json.notion_page_id }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Tag elogio|multi_select",
+              "multiSelectValue": [
+                "Elogiou"
+              ]
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Notion - Marcar Tag Elogio",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        944,
+        1136
+      ],
+      "id": "1f20c413-0940-434a-b735-c1e6520a71db",
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $json.notion_page_id }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "=Status|select",
+              "selectValue": "=7. Lead Descartado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Notion - Mover Lead para Lead Descartado",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        944,
+        944
+      ],
+      "id": "b655a704-09d1-429b-82c7-41ebaf369e24",
+      "notesInFlow": true,
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Atualiza o CRM para 7. Lead Descartado quando a IA detecta recusa"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.supabase_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "descartado"
+            }
+          ]
+        }
+      },
+      "name": "Supabase - Atualizar Status para \"descartado\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1168,
+        944
+      ],
+      "id": "824676b6-ed2c-40ab-9975-f00fb77044e4",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "limit": "={{ $('Painel de Controle Diário').first().json.limite_diario }}",
+        "orderBy": "score_ia.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pendente"
+            },
+            {
+              "keyName": "produto_alvo",
+              "condition": "eq",
+              "keyValue": "site"
+            },
+            {
+              "keyName": "segmento",
+              "condition": "ilike",
+              "keyValue": "={{ $('Painel de Controle Diário').first().json.segmento_alvo }}"
+            },
+            {
+              "keyName": "sdr_responsavel",
+              "condition": "eq",
+              "keyValue": "0516"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3648,
+        288
+      ],
+      "id": "c7d27024-9855-4285-8bd7-f86b50f38d01",
+      "name": "Supabase - Puxar Top Leads",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const agora = $now.setZone('America/Sao_Paulo');\nconst hora = agora.hour;\nconst diaSemana = agora.weekday;\n\nconst diaValido = diaSemana >= 1 && diaSemana <= 6;\n// Ajustado para >= 7 para permitir os disparos sorteados entre 07:55 e 07:59\nconst horaValida = hora >= 7 && hora < 19;\n\n// Preserva todos os dados do lead e apenas anexa a checagem no final\nreturn $input.all().map(item => {\n  item.json.pode_enviar = diaValido && horaValida;\n  return item;\n});"
+      },
+      "name": "Checar Horário Comercial",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2976,
+        0
+      ],
+      "id": "e7267bb4-ef8f-4a92-a638-7137caeaf701"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.pode_enviar }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Dentro do Horário?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2752,
+        0
+      ],
+      "id": "6dbf64d3-7554-471a-9a65-2380b533add9"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 1201) }}"
+      },
+      "name": "Atraso Simulando Humano (0 a 20min em segundos)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -4096,
+        288
+      ],
+      "id": "7b373745-755a-47dc-b447-4932c1bebc36",
+      "webhookId": "3d70c849-41c5-4d12-8131-faa0a4a97b05"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "feriados",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "data_feriado",
+              "condition": "eq",
+              "keyValue": "={{ $now.setZone('America/Sao_Paulo').toFormat('yyyy-MM-dd') }}"
+            }
+          ]
+        }
+      },
+      "id": "9e9bdb6a-b244-4a03-bd16-cdfb8722f457",
+      "name": "Buscador de Feriados",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -4768,
+        288
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d04ec950-5b1b-4e1b-bb8c-c9d3efb0ef7f",
+              "name": "token",
+              "value": "79a0a9cf-9fc2-4b5a-933f-9c3c71ea108b",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9086ab70-e2ce-4be7-81f0-8d480f0474d4",
+      "name": "Uazapi - Token (Webhook Central)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4992,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "180b54e3-3e1b-410a-b333-d14ef83c3e80",
+              "name": "token",
+              "value": "79a0a9cf-9fc2-4b5a-933f-9c3c71ea108b",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "77721e22-f979-4d4e-a266-e684c4bdac5b",
+      "name": "Uazapi - Token (Esteira 1)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4992,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "triggerAtHour": 7,
+              "triggerAtMinute": 55
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -5216,
+        288
+      ],
+      "id": "0141b01f-044b-4533-83db-3fdb4903a8d8",
+      "name": "ESTEIRA 1 - Outbounce (Seg a Sab às 7:55h)"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "79a0a9cf-9fc2-4b5a-933f-9c3c71ea108b",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -5216,
+        992
+      ],
+      "id": "0410eaf0-e05f-4634-9a93-607395b2d312",
+      "name": "ESTEIRA 2 - Inbounce (Webhook)",
+      "webhookId": "5106a229-56c9-4570-8ab7-758045905ea9"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "telefone",
+              "name": "telefone",
+              "value": "={{ $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.chat.wa_chatid.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "mensagem",
+              "name": "mensagem",
+              "value": "={{ $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.message.text }} | ID: {{ $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.message.messageid }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "75b5a3eb-fe06-471d-a6fe-e5f931c6803f",
+      "name": "CAMINHO A (Msg2) - Preparar Dados para Redis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4320,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "telefone",
+              "name": "telefone",
+              "value": "={{ $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.chat.wa_chatid.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "mensagem",
+              "name": "mensagem",
+              "value": "={{ $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.message.text || '[Áudio ' + $('ESTEIRA 2 - Inbounce (Webhook)').item.json.body.message.messageid + ']' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "16bd220d-2f85-493b-bc49-ffcd45b355a8",
+      "name": "CAMINHO B (Msg3 em Diante) - Preparar Dados para Redis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4320,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const hoje = $now.setZone('America/Sao_Paulo');\nconst isDomingo = hoje.weekday === 7;\n\n// Pega o resultado do nó do Supabase\nconst dadosFeriado = $input.all().map(item => item.json);\n\n// A CORREÇÃO ESTÁ AQUI: checa se tem a chave \"nome\" para evitar o falso-positivo do pacote vazio\nconst isFeriado = dadosFeriado.length > 0 && dadosFeriado[0].nome !== undefined;\n\nconst pausarHoje = isDomingo || isFeriado;\n\nreturn {\n  json: {\n    hoje: hoje.toFormat('yyyy-MM-dd'),\n    isDomingo: isDomingo,\n    isFeriado: isFeriado,\n    nomeFeriado: isFeriado ? `${dadosFeriado[0].nome} (${dadosFeriado[0].tipo})` : \"Nenhum\",\n    is_dia_util: !pausarHoje\n  }\n};"
+      },
+      "id": "4c5063f9-a98a-4980-8856-c080d7e7213c",
+      "name": "Verificar Feriado e Domingo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4544,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.is_dia_util }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7ee562e3-5cda-4741-a5ee-3440cfcc386c",
+      "name": "Seguir Prospecção?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -4320,
+        288
+      ]
+    }
+  ],
+  "pinData": {
+    "ESTEIRA 2 - Inbounce (Webhook)": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.getsite.com.br",
+            "user-agent": "uazapiGO-Webhook/1.0",
+            "content-length": "2899",
+            "accept-encoding": "gzip",
+            "content-type": "application/json",
+            "x-forwarded-for": "49.12.82.97",
+            "x-forwarded-host": "n8n.getsite.com.br",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "9e5e7e5e6eb9",
+            "x-real-ip": "49.12.82.97"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "BaseUrl": "https://sdr-bot-fabio.uazapi.com",
+            "EventType": "messages",
+            "chat": {
+              "chatbot_agentResetMemoryAt": 0,
+              "chatbot_disableUntil": 0,
+              "chatbot_lastTriggerAt": 0,
+              "chatbot_lastTrigger_id": "",
+              "chatbot_summary": "",
+              "id": "rd0631eb2116a53",
+              "image": "",
+              "imagePreview": "https://pps.whatsapp.net/v/t61.24694-24/354204269_1886697828380282_3357298214829712891_n.jpg?stp=dst-jpg_s96x96_tt6&ccb=11-4&oh=01_Q5Aa6AH-yK7S9_P-sCduAZY8FkWwozmTAYZJaR44knfe0cx_iA&oe=6AF87DD4&_nc_sid=5e03e0&_nc_cat=102",
+              "lead_assignedAttendant_id": "",
+              "lead_awaitingReply": true,
+              "lead_email": "",
+              "lead_field01": "",
+              "lead_field02": "",
+              "lead_field03": "",
+              "lead_field04": "",
+              "lead_field05": "",
+              "lead_field06": "",
+              "lead_field07": "",
+              "lead_field08": "",
+              "lead_field09": "",
+              "lead_field10": "",
+              "lead_field11": "",
+              "lead_field12": "",
+              "lead_field13": "",
+              "lead_field14": "",
+              "lead_field15": "",
+              "lead_field16": "",
+              "lead_field17": "",
+              "lead_field18": "",
+              "lead_field19": "",
+              "lead_field20": "",
+              "lead_fullName": "",
+              "lead_isTicketOpen": false,
+              "lead_kanbanOrder": 0,
+              "lead_name": "",
+              "lead_notes": "",
+              "lead_personalid": "",
+              "lead_status": "",
+              "lead_tags": [],
+              "name": "Barbearia Leandro Nunes",
+              "owner": "555180250516",
+              "phone": "+55 51 8350-5184",
+              "wa_archived": false,
+              "wa_chatid": "555183505184@s.whatsapp.net",
+              "wa_chatlid": "238671366193356@lid",
+              "wa_contactName": "",
+              "wa_ephemeralExpiration": 0,
+              "wa_fastid": "555180250516:555183505184",
+              "wa_isBlocked": false,
+              "wa_isGroup": false,
+              "wa_isGroup_admin": false,
+              "wa_isGroup_announce": false,
+              "wa_isGroup_community": false,
+              "wa_isGroup_member": false,
+              "wa_isPinned": false,
+              "wa_label": [],
+              "wa_lastMessageSender": "238671366193356@lid",
+              "wa_lastMessageTextVote": "Sim",
+              "wa_lastMessageType": "ExtendedTextMessage",
+              "wa_lastMsgTimestamp": 1793807672000,
+              "wa_muteEndTime": 0,
+              "wa_name": "Barbearia Leandro Nunes",
+              "wa_notes": "",
+              "wa_unreadCount": 1
+            },
+            "chatSource": "updated",
+            "instanceName": "sdr-whatsapp-0516 (8b)",
+            "message": {
+              "buttonOrListid": "",
+              "chatid": "555183505184@s.whatsapp.net",
+              "chatlid": "238671366193356@lid",
+              "content": {
+                "text": "Sim",
+                "previewType": 0,
+                "contextInfo": {
+                  "stanzaID": "3EB053CCC425777E026367",
+                  "participant": "161856563998935@lid",
+                  "quotedMessage": {
+                    "conversation": "Opa, boa tarde! Aqui é do whats da Barbearia Leandro Nunes?"
+                  },
+                  "quotedType": 0
+                },
+                "inviteLinkGroupTypeV2": 0
+              },
+              "convertOptions": "",
+              "edited": "",
+              "fromMe": false,
+              "groupName": "",
+              "id": "555180250516:A5C849ECB1FA2EF2AD6CF926A833BBE6",
+              "isGroup": false,
+              "mediaType": "",
+              "messageTimestamp": 1793807672000,
+              "messageType": "ExtendedTextMessage",
+              "messageid": "A5C849ECB1FA2EF2AD6CF926A833BBE6",
+              "owner": "555180250516",
+              "pinned": false,
+              "quoted": "3EB053CCC425777E026367",
+              "reaction": "",
+              "sender": "238671366193356@lid",
+              "senderName": "Barbearia Leandro Nunes",
+              "sender_lid": "238671366193356@lid",
+              "sender_pn": "555183505184@s.whatsapp.net",
+              "source": "android",
+              "status": "",
+              "text": "Sim",
+              "track_id": "",
+              "track_source": "",
+              "type": "text",
+              "vote": "",
+              "wasSentByApi": false
+            },
+            "owner": "555180250516",
+            "token": "79a0a9cf-9fc2-4b5a-933f-9c3c71ea108b"
+          },
+          "webhookUrl": "https://n8n.getsite.com.br/webhook/79a0a9cf-9fc2-4b5a-933f-9c3c71ea108b",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Processar Lead por Lead": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Notificação Fim de Fila",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pausa de 1 a 7 Min",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerador da Msg1 (Spintax)": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Checar se tem WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerador da Msg2 (Spintax)": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Ativar \"Digitando\" Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot - Criar Contato": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Disparo Msg1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Uazapi - Disparo Msg1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Criar Contato": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Status para \"msg1_enviada\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente SDR (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Picotar Mensagem",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Verificar IA (buscar Elogio e Negativa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Ativar \"Digitando\"": {
+      "main": [
+        [
+          {
+            "node": "Tempo de Digitação (4 a 9s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tempo de Digitação (4 a 9s)": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Disparo SDR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Tag Humano?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Notion - Mover para \"Em Conversação\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente SDR (OpenAI)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente SDR (OpenAI)",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub - Agendar Reunião": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente SDR (OpenAI)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Áudio?": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Baixar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atualizar Status para \"em_conversacao\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Status para \"em_conversacao\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter Áudio Binário": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub - Cancelar Reunião": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente SDR (OpenAI)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Marcar como Lido": {
+      "main": [
+        [
+          {
+            "node": "Agente SDR (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Status para \"em_conversacao\"": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Buscar Contato - Esteira 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Playbook de Objeções",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Playbook de Objeções": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente SDR (OpenAI)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Picotar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Ativar \"Digitando\" Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Tempo de Digitação (4 a 9s) Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa de 2 a 7 Seg": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Ativar \"Digitando\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa de 1 a 7 Min": {
+      "main": [
+        [
+          {
+            "node": "Checar Horário Comercial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tempo de Digitação (4 a 9s) Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Disparo Msg2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Marcar Msg1 como Lido": {
+      "main": [
+        [
+          {
+            "node": "Gerador da Msg2 (Spintax)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Pausa de 2 a 7 Seg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É WhatsApp Válido?": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Criar Contato",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atualizar Status para \"sem_whatsapp\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Status para \"msg1_enviada\"": {
+      "main": [
+        [
+          {
+            "node": "Processar Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Status para \"sem_whatsapp\"": {
+      "main": [
+        [
+          {
+            "node": "Processar Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Mover para \"Em Conversação\"": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Marcar como Lido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Limpar Fila": {
+      "main": [
+        [
+          {
+            "node": "É Áudio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Empilhar Mensagem Esteira 3": {
+      "main": [
+        [
+          {
+            "node": "Pausa Debounce - Esteira 3 (90% 20-30seg e 10% 60-90seg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Ler Fila Esteira 3": {
+      "main": [
+        [
+          {
+            "node": "Validar Última Execução - Esteira 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Última Execução - Esteira 3": {
+      "main": [
+        [
+          {
+            "node": "Unificar Mensagens (Join) - Esteira 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Uazapi - Marcar Msg1 como Lido2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Última Execução - Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Unificar Mensagens (Join) Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Uazapi - Marcar Msg1 como Lido1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unificar Mensagens (Join) - Esteira 3": {
+      "main": [
+        [
+          {
+            "node": "Redis - Limpar Fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Limpar Fila Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Marcar Msg1 como Lido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unificar Mensagens (Join) Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Redis - Limpar Fila Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Ler Fila Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Validar Última Execução - Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Empilhar Mensagem Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Pausa Debounce - Esteira 2 (1 a 3 min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Painel de Controle Diário": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Puxar Top Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Lead no Supabase": {
+      "main": [
+        [
+          {
+            "node": "Roteador Central",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador Central": {
+      "main": [
+        [
+          {
+            "node": "CAMINHO A (Msg2) - Preparar Dados para Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CAMINHO B (Msg3 em Diante) - Preparar Dados para Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pausar IA no Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausar IA no Supabase": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Buscar Contato - Esteira Pausa Humana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Disparo Msg1": {
+      "main": [
+        [
+          {
+            "node": "Notion - Criar Contato",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Processar Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Disparo Msg2": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Status para \"msg2_enviada\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot - Buscar Conversa - Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Tag Bot - Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot - Tag Bot - Esteira 2": {
+      "main": [
+        []
+      ]
+    },
+    "Chatwoot - Buscar Contato - Esteira 2": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Buscar Conversa - Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot - Buscar Contato - Esteira 3": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Buscar Conversa - Esteira 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot - Buscar Conversa - Esteira 3": {
+      "main": [
+        [
+          {
+            "node": "Tem Tag Humano?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tem Tag Humano?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot - Buscar Contato - Esteira Pausa Humana": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Buscar Conversa - Esteira Pausa Humana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chatwoot - Buscar Conversa - Esteira Pausa Humana": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Tag Humano - Esteira Pausa Humana",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Checar se tem WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "É WhatsApp Válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Baixar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Converter Áudio Binário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Disparo SDR": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub - Consultar Agenda": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente SDR (OpenAI)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa Debounce - Esteira 3 (90% 20-30seg e 10% 60-90seg)": {
+      "main": [
+        [
+          {
+            "node": "Redis - Ler Fila Esteira 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa Debounce - Esteira 2 (1 a 3 min)": {
+      "main": [
+        [
+          {
+            "node": "Redis - Ler Fila Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador CRM": {
+      "main": [
+        [
+          {
+            "node": "Notion - Mover Lead para Lead Descartado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion - Marcar Tag Elogio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar IA (buscar Elogio e Negativa": {
+      "main": [
+        [
+          {
+            "node": "Roteador CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Mover Lead para Lead Descartado": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Atualizar Status para \"descartado\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Puxar Top Leads": {
+      "main": [
+        [
+          {
+            "node": "Processar Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Horário Comercial": {
+      "main": [
+        [
+          {
+            "node": "Dentro do Horário?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dentro do Horário?": {
+      "main": [
+        [
+          {
+            "node": "Gerador da Msg1 (Spintax)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Uazapi - Notificação Fim de Fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atraso Simulando Humano (0 a 20min em segundos)": {
+      "main": [
+        [
+          {
+            "node": "Painel de Controle Diário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscador de Feriados": {
+      "main": [
+        [
+          {
+            "node": "Verificar Feriado e Domingo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Token (Esteira 1)": {
+      "main": [
+        [
+          {
+            "node": "Buscador de Feriados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Token (Webhook Central)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Lead no Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ESTEIRA 1 - Outbounce (Seg a Sab às 7:55h)": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Token (Esteira 1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ESTEIRA 2 - Inbounce (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Token (Webhook Central)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CAMINHO A (Msg2) - Preparar Dados para Redis": {
+      "main": [
+        [
+          {
+            "node": "Redis - Empilhar Mensagem Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CAMINHO B (Msg3 em Diante) - Preparar Dados para Redis": {
+      "main": [
+        [
+          {
+            "node": "Redis - Empilhar Mensagem Esteira 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Feriado e Domingo": {
+      "main": [
+        [
+          {
+            "node": "Seguir Prospecção?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seguir Prospecção?": {
+      "main": [
+        [
+          {
+            "node": "Atraso Simulando Humano (0 a 20min em segundos)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Status para \"msg2_enviada\"": {
+      "main": [
+        [
+          {
+            "node": "Chatwoot - Buscar Contato - Esteira 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "saveExecutionProgress": true
+  },
+  "versionId": "8d3e880d-5f1c-41cf-bb0c-48386d6d1c76",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ea4ff6e230fcfbbc07839ceec4042a2116291c314eed27927035c7f01088f7ea"
+  },
+  "nodeGroups": [],
+  "id": "qyM4YSHpu31BMOxQ",
+  "tags": [
+    {
+      "updatedAt": "2026-10-24T22:23:17.384Z",
+      "createdAt": "2026-10-24T22:23:17.384Z",
+      "id": "eBKzZShllJrKO644",
+      "name": "Site"
+    }
+  ]
+}
