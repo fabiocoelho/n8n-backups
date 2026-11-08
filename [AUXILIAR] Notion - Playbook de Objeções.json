@@ -1,0 +1,271 @@
+{
+  "name": "[AUXILIAR] Notion - Playbook de Objeções",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "cab64835-654d-4d59-9147-998a0d7eccda",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "objecoes",
+          "mode": "list",
+          "cachedResultName": "objecoes"
+        },
+        "options": {}
+      },
+      "id": "9f30903a-ca47-487d-9ed6-f68e433c35b5",
+      "name": "Supabase Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [
+        576,
+        32
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f02cc26e-4080-43d5-8526-0605853f96c5",
+      "name": "Embeddings OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        272
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "yDUFHel1rtdFJeZx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        768,
+        480
+      ],
+      "id": "f97b4333-65e7-4716-804e-4bb97133255e",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "3e0e8a44-566c-8067-b185-fa6a9d356988",
+          "mode": "list",
+          "cachedResultName": "Playbook de Objeções - SDR",
+          "cachedResultUrl": "https://app.notion.com/p/3e0e8a44566c8067b185fa6a9d356988"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "e9eabfdd-8535-4e41-9bb6-61ecbde6794d",
+      "name": "Notion - Playbook de Objeções",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        320,
+        32
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.property_script_de_contorno }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "categoria",
+                "value": "={{ $json.property_categoria }}"
+              },
+              {
+                "name": "objecao",
+                "value": "={{ $json.property_obje_o }}"
+              },
+              {
+                "name": "produto_alvo",
+                "value": "={{ $json.property_produto }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "97fbd7ad-b572-43c6-af7a-ba03bdb2cbf6",
+      "name": "Mapeador e Carregador de Texto",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        688,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "TRUNCATE TABLE objecoes;",
+        "options": {}
+      },
+      "id": "79a72ecb-7eb7-47ca-8484-b28e2b4c106f",
+      "name": "Limpar Tabela (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        96,
+        32
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "OfKHjdHzdK9J1LJR",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE objecoes SET produto_alvo = metadata->>'produto_alvo';",
+        "options": {}
+      },
+      "id": "ae80d939-5881-4759-81d2-343b05557750",
+      "name": "Atualizar Coluna Visual (Supabase)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1040,
+        32
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "OfKHjdHzdK9J1LJR",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Limpar Tabela (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Mapeador e Carregador de Texto",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Playbook de Objeções": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mapeador e Carregador de Texto": {
+      "ai_document": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Tabela (Supabase)": {
+      "main": [
+        [
+          {
+            "node": "Notion - Playbook de Objeções",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Coluna Visual (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "0e2e8946-72df-4516-b736-8f9978ae30ab",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ea4ff6e230fcfbbc07839ceec4042a2116291c314eed27927035c7f01088f7ea"
+  },
+  "nodeGroups": [],
+  "id": "dt2f2Qq84s6Z6BwC",
+  "tags": []
+}
