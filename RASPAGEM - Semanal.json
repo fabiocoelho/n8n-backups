@@ -1,0 +1,393 @@
+{
+  "name": "RASPAGEM - Semanal",
+  "nodes": [
+    {
+      "parameters": {
+        "tableId": "leads",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "nome_negocio",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.nome_negocio }}"
+            },
+            {
+              "fieldId": "nome_contato",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.nome_contato }}"
+            },
+            {
+              "fieldId": "endereco",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.endereco }}"
+            },
+            {
+              "fieldId": "bairro",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.bairro }}"
+            },
+            {
+              "fieldId": "segmento",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.segmento }}"
+            },
+            {
+              "fieldId": "link_gmb",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.link_gmb }}"
+            },
+            {
+              "fieldId": "tag_origem",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.tag_origem }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.status }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.email }}"
+            },
+            {
+              "fieldId": "whatsapp",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.whatsapp }}"
+            },
+            {
+              "fieldId": "comercio_fechou",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.comercio_fechou }}"
+            },
+            {
+              "fieldId": "distribuicao_avaliacoes",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.distribuicao_reviews }}"
+            },
+            {
+              "fieldId": "nota_google",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.nota_google }}"
+            },
+            {
+              "fieldId": "qntd_avaliacoes",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.qntd_avaliacoes }}"
+            },
+            {
+              "fieldId": "score_ia",
+              "fieldValue": "={{ JSON.parse($json.output[0].content[0].text).score }}"
+            },
+            {
+              "fieldId": "motivo_ia",
+              "fieldValue": "={{ JSON.parse($('Qualificar Leads (IA)').item.json.output[0].content[0].text).motivo }}"
+            },
+            {
+              "fieldId": "site",
+              "fieldValue": "={{ $('Processar Lead por Lead1').item.json.site }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1376,
+        -432
+      ],
+      "name": "Salvar no Supabase",
+      "id": "ee1aa246-87e5-4b55-b873-bc4e78789358",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "termo_busca",
+              "value": "barbearia porto alegre",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "quantidade_empresas",
+              "value": 1000,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -320,
+        -432
+      ],
+      "name": "Painel de Controle Semanal",
+      "id": "2e63b0ab-52bb-44fc-a57f-de16a2b95290"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Você é um especialista em pré-vendas (SDR) e inteligência comercial B2B.\nSua missão é analisar os dados de uma empresa coletada no Google Maps e calcular um Score de Prospecção de 0 a 100, indicando o quanto esse lead merece prioridade para contato comercial pela GetSite.\nO score mede prioridade comercial, não probabilidade de compra. Aplique exclusivamente as regras abaixo. Não invente informações, não faça suposições e não altere os valores definidos.\n\nDADOS DA EMPRESA\nNome do Negócio: {{ $json.nome_negocio }}\nSegmento: {{ $json.segmento }}\nBairro/Endereço: {{ $json.bairro }} / {{ $json.endereco }}\nWhatsApp / Telefone: {{ $json.whatsapp }}\nSite Atual: {{ $json.website }}\nInstagram: {{ $json.instagram }}\nNota no Google: {{ $json.nota_google }}\nQuantidade de Avaliações: {{ $json.qntd_avaliacoes }}\nComércio Fechou?: {{ $json.comercio_fechou }}\n\nREGRA DE DESCARTE\nAntes de calcular o score:\nSe comercio_fechou = true:\nscore = 0\nprioridade = \"D\"\nNão aplique os demais critérios.\nNão descarte empresas apenas por terem poucos dados, poucas avaliações ou ausência de site.\n\nCÁLCULO DO SCORE DE PROSPECÇÃO\nSome EXATAMENTE os pontos dos 4 grupos abaixo.\n1. ADERÊNCIA AO CLIENTE IDEAL — ATÉ 30 PONTOS\nAvalie exclusivamente o segmento informado.\nTier A — +30 pontos: Saúde, Jurídico, Engenharia, Arquitetura, Despachante, Consultoria, Reformas, Imobiliária, Contabilidade e serviços profissionais claramente aderentes.\nTier B — +20 pontos: outros serviços profissionais ou especializados com clara possibilidade de benefício por uma presença digital profissional.\nTier C — +10 pontos: demais negócios locais que possam se beneficiar de um site profissional.\nTier D — +0 pontos: segmentos claramente pouco aderentes à proposta da GetSite.\nQuando houver dúvida entre categorias, escolha a categoria inferior. Não classifique um segmento como Tier A por mera semelhança.\n2. EVIDÊNCIA DE NEGÓCIO ATIVO — ATÉ 25 PONTOS\nQuantidade de avaliações:\n100 ou mais = +15\n30 a 99 = +12\n10 a 29 = +8\n5 a 9 = +4\n0 a 4 = +0\nNota Google:\n4.8 ou mais = +10\n4.5 a 4.79 = +8\n4.0 a 4.49 = +5\nabaixo de 4.0 = +0\n3. OPORTUNIDADE DIGITAL — ATÉ 30 PONTOS\nAvalie somente os sinais básicos disponíveis nesta esteira.\nSite:\nSem site ou campo vazio = +20\nSite cadastrado = +5\nInstagram:\nNão identificado = +5\nIdentificado = +0\nNão avalie nesta etapa design, velocidade, desempenho, mobile, SEO, autoridade, conteúdo, conversão, CTA ou qualidade do Instagram. Essas análises serão realizadas na Esteira 2.\nSe existir apenas uma URL no campo website, considere que existe site. Não presuma que ele é bom, ruim, antigo, lento ou quebrado.\n4. FACILIDADE DE CONTATO — ATÉ 15 PONTOS\nTelefone/celular válido:\nSim = +10\nNão = +0\nWhatsApp comprovado:\nSim = +5\nNão comprovado = +0\nNão presuma que todo telefone é WhatsApp.\n\nVALIDAÇÃO DO SCORE\nO score final deve ser a soma exata dos pontos obtidos nos quatro grupos.\nPontuação máxima: 100.\nNão arredonde.\nNão ajuste o score.\nNão aumente nem reduza pontos para favorecer um lead.\n\nPRIORIDADE DE PROSPECÇÃO\nClassifique exclusivamente pela faixa do score:\n80–100 = \"A\"\n60–79 = \"B\"\n40–59 = \"C\"\n0–39 = \"D\"\nprioridade representa apenas a ordem recomendada de prospecção. Não significa que o lead esteja qualificado.\nNão calcule nem determine qualificado.\n\nFORMATO DE SAÍDA\nRetorne EXCLUSIVAMENTE um objeto JSON válido.\nNão use markdown.\nNão use ```json.\nNão adicione explicações fora do JSON.\nUse EXATAMENTE esta estrutura:\n{\n\"score\": 0,\n\"prioridade\": \"D\",\n\"motivo\": \"Resumo objetivo dos principais fatores que aumentaram ou reduziram o score.\"\n}\nO campo score deve ser um número inteiro de 0 a 100.\nO campo prioridade deve conter somente \"A\", \"B\", \"C\" ou \"D\".\nO campo motivo deve explicar de forma objetiva os principais fatores que determinaram o score, destacando principalmente aderência ao segmento, atividade do negócio, oportunidade digital e facilidade de contato. Não repita todos os critérios; mencione apenas os mais relevantes."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1024,
+        -512
+      ],
+      "id": "44d17df5-b43b-48e2-ab0a-c6e0ddaae41f",
+      "name": "Qualificar Leads (IA)",
+      "credentials": {
+        "openAiApi": {
+          "id": "yDUFHel1rtdFJeZx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "Run actor and get dataset",
+        "actorSource": "store",
+        "actorId": {
+          "__rl": true,
+          "value": "nwua9Gu5YrADL7ZDj",
+          "mode": "list",
+          "cachedResultName": "Google Maps Scraper (compass/crawler-google-places)",
+          "cachedResultUrl": "https://console.apify.com/actors/nwua9Gu5YrADL7ZDj/input"
+        },
+        "customBody": "={\n  \"searchStringsArray\": [\n    \"{{ $json.termo_busca }}\"\n  ],\n  \"locationQuery\": \"Porto Alegre, Rio Grande do Sul, Brazil\",\n  \"maxCrawledPlacesPerSearch\": {{ $json.quantidade_empresas }},\n  \"language\": \"pt-BR\",\n  \"countryCode\": \"br\"\n}",
+        "timeout": {},
+        "maxTotalChargeUsd": {}
+      },
+      "type": "@apify/n8n-nodes-apify.apify",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        -432
+      ],
+      "id": "885d0556-2cce-4b22-8000-a7fddac15782",
+      "name": "Raspar Google Maps",
+      "credentials": {
+        "apifyApi": {
+          "id": "vgzgMScs8O1Yrdko",
+          "name": "Apify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const data = item.json;\n  \n  // Limpa e padroniza o telefone\n  const telefoneLimpo = data.phoneUnformatted || data.phone || \"\";\n  \n  // Monta o link do Google Meu Negócio\n  const linkGMB = data.url || (data.placeId ? `https://www.google.com/maps/place/?q=place_id:${data.placeId}` : \"\");\n\n  return {\n    json: {\n      whatsapp: telefoneLimpo,\n      nome_negocio: data.title || \"\",\n      nome_contato: \"\", \n      link_gmb: linkGMB,\n      endereco: data.address || \"\",\n      bairro: data.neighborhood || \"\",\n      segmento: data.categoryName || \"\",\n      site: data.website || \"\",\n      instagram: data.instagram || \"\",\n      email: data.email || \"\",\n      nota_google: data.totalScore || 0,\n      qntd_avaliacoes: data.reviewsCount || 0,\n      comercio_fechou: data.permanentlyClosed || false,\n      distribuicao_reviews: data.reviewsDistribution || null,\n      tag_origem: \"Google Maps\",\n      status: \"pendente\"\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        -432
+      ],
+      "name": "Padronizar Dados",
+      "id": "e9e0cadc-38fc-42e4-a143-b77a673e6366"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "returnAll": true
+      },
+      "id": "8ecae900-6f05-4af9-9630-301920084370",
+      "name": "Supabase - Puxar IDs Existentes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        352,
+        -432
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Pega os dados que saíram da raspagem (do nó Padronizar Dados)\nconst leads = $('Padronizar Dados').all().map(item => item.json);\n\n// 2. Pega a lista de números de WhatsApp que o Supabase retornou\nconst whatsappsExistentes = $input.all().map(item => item.json.whatsapp).filter(Boolean);\n\n// 3. Aplica o filtro em todos os leads simultaneamente\nconst leadsLimpos = leads.filter(lead => {\n  const whatsappLead = lead.whatsapp || lead.telefone || lead.phone || '';\n  const status = lead.status || lead.businessStatus || '';\n  \n  // Regras de bloqueio\n  const isDuplicado = whatsappsExistentes.includes(whatsappLead);\n  const isFechado = status.toUpperCase().includes('CLOSED');\n  \n  // O lead só passa se NÃO for duplicado e NÃO estiver fechado\n  return !isDuplicado && !isFechado;\n});\n\n// 4. Se todo mundo for descartado, encerra aqui. Se tiver lead bom, manda para frente.\nif (leadsLimpos.length === 0) {\n  return []; \n}\n\nreturn leadsLimpos.map(lead => ({ json: lead }));"
+      },
+      "id": "929fd7d1-f6cc-4cf9-929f-3c4579cf64d2",
+      "name": "Descarte Duplicados e Fechados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f2e88737-4551-49bc-b725-be11e605c287",
+      "name": "Processar Lead por Lead1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        800,
+        -432
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -544,
+        -432
+      ],
+      "id": "90a62966-c965-4f20-b1b3-7dfa784cf619",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "pinData": {
+    "When clicking ‘Execute workflow’": [
+      {
+        "json": {},
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Painel de Controle Semanal": {
+      "main": [
+        [
+          {
+            "node": "Raspar Google Maps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualificar Leads (IA)": {
+      "main": [
+        [
+          {
+            "node": "Salvar no Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raspar Google Maps": {
+      "main": [
+        [
+          {
+            "node": "Padronizar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Padronizar Dados": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Puxar IDs Existentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Puxar IDs Existentes": {
+      "main": [
+        [
+          {
+            "node": "Descarte Duplicados e Fechados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar no Supabase": {
+      "main": [
+        [
+          {
+            "node": "Processar Lead por Lead1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descarte Duplicados e Fechados": {
+      "main": [
+        [
+          {
+            "node": "Processar Lead por Lead1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Lead por Lead1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Qualificar Leads (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Painel de Controle Semanal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "saveExecutionProgress": true
+  },
+  "versionId": "4e2ef210-bf70-4c42-971c-8ee293aa4a4f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ea4ff6e230fcfbbc07839ceec4042a2116291c314eed27927035c7f01088f7ea"
+  },
+  "nodeGroups": [],
+  "id": "zWmNg8XJEdq33J5Y",
+  "tags": []
+}

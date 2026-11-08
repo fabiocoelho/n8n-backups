@@ -1,0 +1,435 @@
+{
+  "name": "TOOL - Cancelar Reunião",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "fabio.ferraz.coelho@gmail.com",
+          "mode": "list",
+          "cachedResultName": "Reuniões GetSite"
+        },
+        "limit": 20,
+        "options": {
+          "timeMin": "={{ $now.setZone('America/Sao_Paulo').toISO() }}",
+          "query": ""
+        }
+      },
+      "id": "03c89f01-56e7-4ad3-8bbe-b44aff279a6f",
+      "name": "Buscar Reunião Futura",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        16
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "8bWH4wDihLqSLDwa",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.id }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "61b5b348-c615-4ce9-bc98-dd28e3c16f13",
+      "name": "Encontrou Evento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "fabio.ferraz.coelho@gmail.com",
+          "mode": "list",
+          "cachedResultName": "Reuniões GetSite"
+        },
+        "eventId": "={{ $json.id }}",
+        "options": {}
+      },
+      "id": "f034a4f7-2b97-43d0-9d00-4254beb7ea2d",
+      "name": "Cancelar (Google Calendar)",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        208,
+        -80
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "8bWH4wDihLqSLDwa",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "resultado_ferramenta",
+              "value": "Reunião cancelada com sucesso no Google Calendar e status do lead no Supabase alterado para em_conversacao."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e50b7b04-4984-42bb-9f09-9399a82a81c6",
+      "name": "Retorno IA (Sucesso)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "resultado_ferramenta",
+              "value": "Nenhuma reunião futura encontrada para este WhatsApp. Não foi possível realizar o cancelamento."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "89049439-c815-4c87-b798-bb2899c9343d",
+      "name": "Retorno IA (Falha)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        208,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "telefone"
+            },
+            {
+              "name": "link_notion"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -688,
+        16
+      ],
+      "id": "02bb7d73-7f45-4ee6-9819-e272cb47fc32",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Puxa o telefone original que veio do gatilho\nconst telefone = $('When Executed by Another Workflow').first().json.telefone;\n\n// 2. Procura em todas as 20 reuniões do Google qual delas contém o telefone\nconst match = $input.all().find(item => {\n  const text = JSON.stringify(item.json);\n  return text.includes(telefone);\n});\n\n// 3. Se achou a reunião, manda ela pra frente. Se não achou, manda o pacote vazio.\nif (match) {\n  return [match];\n} else {\n  return [{ json: {} }];\n}"
+      },
+      "id": "175ce767-39f4-4c53-9f00-2926c92e91a2",
+      "name": "Filtro Inteligente (WhatsApp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "whatsapp",
+              "condition": "eq",
+              "keyValue": "={{ $('When Executed by Another Workflow').first().json.telefone }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "em_conversacao"
+            }
+          ]
+        }
+      },
+      "id": "f0fb84ad-50e7-4591-bf76-91535b1ee6f5",
+      "name": "Atualizar Supabase para \"em_conversacao\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -80
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $('Notion - Buscar Contato').item.json.id }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|select",
+              "selectValue": "3. Em Conversação"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        880,
+        -80
+      ],
+      "id": "5da9972a-b529-45ab-a309-5b047f1f420e",
+      "name": "Notion - Mover para Coluna \"Em Conversação\"",
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3a7e8a44-566c-8060-837e-000b93a35902",
+          "mode": "list",
+          "cachedResultName": "CRM Kanban",
+          "cachedResultUrl": "https://app.notion.com/p/3a7e8a44566c80a6a372c5609517a448"
+        },
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "key": "ID Supabase|rich_text",
+              "condition": "equals",
+              "richTextValue": "={{ String($json.id) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        656,
+        -80
+      ],
+      "id": "d6224c7e-4b7e-4127-a725-d4cc3395dc10",
+      "name": "Notion - Buscar Contato",
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "79a0a9cf-9fc2-4b5a-933f-9c3c71ea108b"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"555180573087\",\n  \"text\": \"❌ *Agendamento Cancelado!*\\n\\nO lead solicitou o cancelamento ou reagendamento da reunião.\\n\\n🔗 *Ficha no Notion:* {{ $('When Executed by Another Workflow').item.json.link_notion }}\\n\\n📱 *WhatsApp do Lead:* https://wa.me/{{ $('When Executed by Another Workflow').item.json.telefone.replace(/[^0-9]/g, '') }}\"\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Notificar Cancelamento From 0516 - To 3087",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1104,
+        -80
+      ],
+      "id": "990858c7-5a8b-4666-b4a6-f8f55a1533eb"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "telefone": "+5551980573087"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Buscar Reunião Futura": {
+      "main": [
+        [
+          {
+            "node": "Filtro Inteligente (WhatsApp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Encontrou Evento?": {
+      "main": [
+        [
+          {
+            "node": "Cancelar (Google Calendar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retorno IA (Falha)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancelar (Google Calendar)": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Supabase para \"em_conversacao\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Buscar Reunião Futura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro Inteligente (WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Encontrou Evento?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Supabase para \"em_conversacao\"": {
+      "main": [
+        [
+          {
+            "node": "Notion - Buscar Contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Mover para Coluna \"Em Conversação\"": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Notificar Cancelamento From 0516 - To 3087",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Buscar Contato": {
+      "main": [
+        [
+          {
+            "node": "Notion - Mover para Coluna \"Em Conversação\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Notificar Cancelamento From 0516 - To 3087": {
+      "main": [
+        [
+          {
+            "node": "Retorno IA (Sucesso)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "8fb6b7f8-3171-43c7-b986-a0a509bc3d1b",
+  "meta": {
+    "instanceId": "ea4ff6e230fcfbbc07839ceec4042a2116291c314eed27927035c7f01088f7ea"
+  },
+  "nodeGroups": [],
+  "id": "N6ChHsZWg75xW3Rt",
+  "tags": []
+}

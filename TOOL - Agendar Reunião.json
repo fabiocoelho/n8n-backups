@@ -1,0 +1,613 @@
+{
+  "name": "TOOL - Agendar Reunião",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Extrai data e hora enviadas pelo Agente SDR\nconst data = $input.item.json.data_solicitada;\nconst hora = $input.item.json.horario_solicitado;\n\n// Formata para o fuso de Brasília (UTC-3)\nconst startTime = new Date(`${data}T${hora}:00-03:00`);\nconst endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // Adiciona 1 hora\n\nreturn {\n  ...$input.item.json,\n  start_iso: startTime.toISOString(),\n  end_iso: endTime.toISOString()\n};"
+      },
+      "id": "73d49e1d-8dd8-4100-b1ef-743a843bd047",
+      "name": "Formatador de Horário",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1280,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "fabio.ferraz.coelho@gmail.com",
+          "mode": "list",
+          "cachedResultName": "Reuniões GetSite"
+        },
+        "limit": 5,
+        "options": {
+          "timeMin": "={{ $now.setZone('America/Sao_Paulo').toISO() }}",
+          "query": "={{ $('Execute Workflow Trigger').item.json.telefone }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "id": "c6774661-fac9-4d75-a084-2defb2876681",
+      "name": "Buscar Reunião Antiga",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        400
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "8bWH4wDihLqSLDwa",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id ? true : false }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "39a5afd9-6679-49a7-bb30-72a7fe446192",
+      "name": "Existe Reunião Antiga?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "fabio.ferraz.coelho@gmail.com",
+          "mode": "list",
+          "cachedResultName": "Reuniões GetSite"
+        },
+        "eventId": "={{ $json.id }}",
+        "options": {}
+      },
+      "id": "990bb658-24f4-4245-8cf4-95f595f65535",
+      "name": "Deletar Reunião Antiga",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        320
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "8bWH4wDihLqSLDwa",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "fabio.ferraz.coelho@gmail.com",
+          "mode": "list",
+          "cachedResultName": "Reuniões GetSite"
+        },
+        "start": "={{ $('Formatador de Horário').item.json.start_iso }}",
+        "end": "={{ $('Formatador de Horário').item.json.end_iso }}",
+        "additionalFields": {
+          "description": "=Telefone: {{ $('Execute Workflow Trigger').item.json.telefone }}\nNome: {{ $('Execute Workflow Trigger').item.json.nome }}",
+          "summary": "=Reunião GetSite - {{ $('Execute Workflow Trigger').item.json.nome_negocio }}"
+        }
+      },
+      "id": "ce9b3de3-b86f-4541-ac73-d2d3c9fe1126",
+      "name": "Criar Nova Reunião",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        64,
+        400
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "8bWH4wDihLqSLDwa",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "sucesso"
+            },
+            {
+              "name": "mensagem",
+              "value": "Reunião agendada com sucesso!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6f92d682-98ab-4eda-bc92-dc46a760a0ea",
+      "name": "Retorno (Sucesso)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "erro"
+            },
+            {
+              "name": "mensagem",
+              "value": "Horário indisponível, peça ao lead para escolher outro."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ed0b24aa-71cd-4c3f-ba52-53c5ef73250c",
+      "name": "Retorno (Conflito)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "nome"
+            },
+            {
+              "name": "telefone"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "data_solicitada"
+            },
+            {
+              "name": "horario_solicitado"
+            },
+            {
+              "name": "nome_negocio"
+            },
+            {
+              "name": "supabase_id"
+            },
+            {
+              "name": "link_notion"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1504,
+        496
+      ],
+      "id": "d69cb3b8-1a9b-4dd0-8d71-ac6f1fc923ca",
+      "name": "Execute Workflow Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "fabio.ferraz.coelho@gmail.com",
+          "mode": "list",
+          "cachedResultName": "Reuniões GetSite"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $json.start_iso }}",
+          "timeMax": "={{ $json.end_iso }}"
+        }
+      },
+      "alwaysOutputData": true,
+      "id": "daafa532-8ee4-4dc2-b662-d19a7703c3ad",
+      "name": "Consultar Horário",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        -1056,
+        496
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "8bWH4wDihLqSLDwa",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.id ? true : false }}"
+            }
+          ]
+        }
+      },
+      "id": "d1fdf383-e832-4182-b21d-53114c88aa11",
+      "name": "Esse Horário Está Livre?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "dataSourceId": {
+          "__rl": true,
+          "value": "3a7e8a44-566c-8060-837e-000b93a35902",
+          "mode": "list",
+          "cachedResultName": "CRM Kanban",
+          "cachedResultUrl": "https://app.notion.com/p/3a7e8a44566c80a6a372c5609517a448"
+        },
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "key": "ID Supabase|rich_text",
+              "condition": "equals",
+              "richTextValue": "="
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        512,
+        400
+      ],
+      "id": "5d53ad02-7cc3-4c28-8fb3-ae1cb990bd5b",
+      "name": "Notion - Buscar Contato",
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        1408,
+        400
+      ],
+      "id": "7eafbe26-7b76-4e53-9a2c-edff9872e8a3",
+      "name": "Execution Data"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $('Notion - Buscar Contato').first().json.id }}",
+          "mode": "id",
+          "__regex": "^([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Nome do contato|rich_text",
+              "textContent": "={{ $('Execute Workflow Trigger').item.json.nome }}"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "4. Agendado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Notion - Atualizar Nome e Mover para Coluna Agendado",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        736,
+        400
+      ],
+      "id": "91534835-aaa6-40c9-9ec2-a2b5d2ad0d48",
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filterType": "string",
+        "filterString": "=id=eq.{{ $('Execute Workflow Trigger').first().json.supabase_id }}",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "nome_contato",
+              "fieldValue": "={{ $('Execute Workflow Trigger').first().json.nome }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "agendado"
+            },
+            {
+              "fieldId": "data_reuniao",
+              "fieldValue": "={{ $('Execute Workflow Trigger').first().json.data_solicitada }}T{{ $('Execute Workflow Trigger').first().json.horario_solicitado }}:00-03:00"
+            }
+          ]
+        }
+      },
+      "name": "Atualizar o Supabase com Nome e \"agendado\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        288,
+        400
+      ],
+      "id": "5694ff33-9339-4a96-8382-6dcdee50a22f",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "79a0a9cf-9fc2-4b5a-933f-9c3c71ea108b"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"555180573087\",\n  \"text\": \"✅ *Novo Agendamento!*\\n\\n*Lead:* {{ $('Execute Workflow Trigger').item.json.nome }}\\n*Data:* {{ $('Execute Workflow Trigger').item.json.data_solicitada }} às {{ $('Execute Workflow Trigger').item.json.horario_solicitado }}\\n\\n🔗 *Ficha no Notion:* {{ $('Execute Workflow Trigger').item.json.link_notion }}\\n\\n📱 *WhatsApp do Lead:* https://wa.me/{{ $('Execute Workflow Trigger').item.json.telefone.replace(/[^0-9]/g, '') }}\"\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Notificar Fábio From 0516 - To 3087",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        960,
+        400
+      ],
+      "id": "445a9526-ad42-46bb-bfcc-736a3d6d424a"
+    }
+  ],
+  "pinData": {
+    "Execute Workflow Trigger": [
+      {
+        "json": {
+          "nome": "Pela",
+          "telefone": "+5551980573087",
+          "email": "",
+          "data_solicitada": "2026-09-16",
+          "horario_solicitado": "14:00",
+          "nome_negocio": "DESPACHANTE ALESSANDRO",
+          "supabase_id": 79
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Formatador de Horário": {
+      "main": [
+        [
+          {
+            "node": "Consultar Horário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Reunião Antiga": {
+      "main": [
+        [
+          {
+            "node": "Existe Reunião Antiga?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existe Reunião Antiga?": {
+      "main": [
+        [
+          {
+            "node": "Deletar Reunião Antiga",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Criar Nova Reunião",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deletar Reunião Antiga": {
+      "main": [
+        [
+          {
+            "node": "Criar Nova Reunião",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Nova Reunião": {
+      "main": [
+        [
+          {
+            "node": "Atualizar o Supabase com Nome e \"agendado\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Formatador de Horário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Horário": {
+      "main": [
+        [
+          {
+            "node": "Esse Horário Está Livre?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esse Horário Está Livre?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Reunião Antiga",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retorno (Conflito)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Buscar Contato": {
+      "main": [
+        [
+          {
+            "node": "Notion - Atualizar Nome e Mover para Coluna Agendado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retorno (Sucesso)": {
+      "main": [
+        [
+          {
+            "node": "Execution Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion - Atualizar Nome e Mover para Coluna Agendado": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Notificar Fábio From 0516 - To 3087",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar o Supabase com Nome e \"agendado\"": {
+      "main": [
+        [
+          {
+            "node": "Notion - Buscar Contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Notificar Fábio From 0516 - To 3087": {
+      "main": [
+        [
+          {
+            "node": "Retorno (Sucesso)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "6c8dd810-f04a-4ce7-88a8-935d357de621",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ea4ff6e230fcfbbc07839ceec4042a2116291c314eed27927035c7f01088f7ea"
+  },
+  "nodeGroups": [],
+  "id": "3H14nn5Rdh6GomHg",
+  "tags": []
+}

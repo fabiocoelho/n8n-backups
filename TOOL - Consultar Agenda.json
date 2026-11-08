@@ -1,0 +1,115 @@
+{
+  "name": "TOOL - Consultar Agenda",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "data_consulta"
+            }
+          ]
+        }
+      },
+      "id": "5c44ac0b-b8a0-450a-ad6f-330941dec8b7",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        208,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "fabio.ferraz.coelho@gmail.com",
+          "mode": "list",
+          "cachedResultName": "Reuniões GetSite"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $('When Executed by Another Workflow').first().json.data_consulta }}T12:00:00-03:00",
+          "timeMax": "={{ $('When Executed by Another Workflow').first().json.data_consulta }}T18:00:00-03:00",
+          "singleEvents": true
+        }
+      },
+      "id": "550ac748-7bf9-461a-ac78-d15e06c47870",
+      "name": "Consultar Horários",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        16
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "8bWH4wDihLqSLDwa",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const eventos = $input.all();\nconst dataStr = $('When Executed by Another Workflow').first().json.data_consulta || '';\n\n// Calcula o dia da semana exato da data consultada para evitar erro de Terça vs Quinta\nconst diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];\nlet diaSemanaTexto = '';\nif (dataStr) {\n  const [ano, mes, dia] = dataStr.split('-').map(Number);\n  const dataObj = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));\n  diaSemanaTexto = ` (${diasSemana[dataObj.getUTCDay()]})`;\n}\n\n// Se o nó do Google Calendar não retornar eventos (dia 100% livre à tarde)\nif (!eventos.length || !eventos[0].json || (!eventos[0].json.start && !eventos[0].json.id)) {\n  return [{\n    json: {\n      disponibilidade: `Agenda 100% livre na tarde de ${dataStr}${diaSemanaTexto}. Horários disponíveis para oferecer: entre 13:30 e 17:30.`\n    }\n  }];\n}\n\n// Se houver eventos, lista os intervalos ocupados\nconst ocupados = eventos\n  .filter(e => e.json && e.json.start)\n  .map(e => {\n    if (e.json.start.dateTime) {\n      const inicio = new Date(e.json.start.dateTime).toLocaleTimeString('pt-BR', {\n        hour: '2-digit',\n        minute: '2-digit',\n        timeZone: 'America/Sao_Paulo'\n      });\n      const fim = new Date(e.json.end.dateTime).toLocaleTimeString('pt-BR', {\n        hour: '2-digit',\n        minute: '2-digit',\n        timeZone: 'America/Sao_Paulo'\n      });\n      return `${inicio} às ${fim}`;\n    }\n    return 'Dia inteiro ocupado';\n  });\n\nreturn [{\n  json: {\n    disponibilidade: `Na data ${dataStr}${diaSemanaTexto}, os seguintes horários JÁ ESTÃO OCUPADOS: ${ocupados.join(' | ')}. Ofereça apenas horários à tarde (entre 13:30 e 17:30) que estejam FORA desses intervalos.`\n  }\n}];"
+      },
+      "id": "7b83a653-a3e3-4e24-90a4-d58a0503c54a",
+      "name": "Formatar Disponibilidade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        16
+      ]
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "data_consulta": "2026-10-28"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Consultar Horários",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Horários": {
+      "main": [
+        [
+          {
+            "node": "Formatar Disponibilidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "68ffef6d-7d8b-4c83-a46f-162b1217fcdb",
+  "meta": {
+    "instanceId": "ea4ff6e230fcfbbc07839ceec4042a2116291c314eed27927035c7f01088f7ea"
+  },
+  "nodeGroups": [],
+  "id": "Y2j8K9i1XpBG2IU0",
+  "tags": []
+}
