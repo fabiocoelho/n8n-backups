@@ -1,0 +1,1361 @@
+{
+  "name": "CRON - Mensagens de Follow-up SDR 3087 (Atualizado)",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "em_conversacao"
+            },
+            {
+              "keyName": "sdr_responsavel",
+              "condition": "eq",
+              "keyValue": "3087"
+            }
+          ]
+        }
+      },
+      "name": "Supabase - Buscar Leads",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -528,
+        896
+      ],
+      "id": "8d71809d-501b-4058-a7b1-8270794f3ef4",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 3) + 2 }}"
+      },
+      "name": "Pausa 2 a 4s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        32
+      ],
+      "id": "91fa4da5-1d92-4bd6-8b78-9e088dbce951",
+      "webhookId": "01133f78-de1a-481c-83f5-a2d3f4d008ae"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 5) + 6 }}"
+      },
+      "name": "Pausa 6 a 10",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        224
+      ],
+      "id": "62d2b09a-678f-4ef1-a5cd-4ada20557e68",
+      "webhookId": "2b80286d-c675-46fa-a8ed-ec7df5aa016d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nconst today = new Date();\ntoday.setHours(0,0,0,0);\n\nfor (const item of $input.all()) {\n// Trava de segurança: Pula o lead se o atendimento humano estiver ativado\n  if (item.json.ai_paused === true) continue;  \n  \n  // Lê a data da última interação blindada (ou usa o updated_at como plano B para leads velhos)\n  const lastUpdate = new Date(item.json.last_interaction_at || item.json.updated_at);\n  lastUpdate.setHours(0,0,0,0);\n  \n  const diffTime = Math.abs(today - lastUpdate);\n  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));\n  \n  const etapaAtual = item.json.etapa_followup || 0;\n  let diaGatilho = 0;\n\n  // Lógica \"À prova de pulos\": Verifica a próxima etapa pendente se os dias já tiverem passado\n  if (etapaAtual < 2 && diffDays >= 2) diaGatilho = 2;\n  else if (etapaAtual < 3 && diffDays >= 3) diaGatilho = 3;\n  else if (etapaAtual < 4 && diffDays >= 4) diaGatilho = 4;\n  else if (etapaAtual < 7 && diffDays >= 7) diaGatilho = 7;\n  else if (etapaAtual < 10 && diffDays >= 10) diaGatilho = 10;\n\n  if (diaGatilho > 0) {\n    item.json.followup_dia = diaGatilho; // Avisa o roteador qual etapa disparar\n    results.push(item);\n  }\n}\nreturn results;"
+      },
+      "name": "Calcular 2, 3, 4, 7 e 10 Dias",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        896
+      ],
+      "id": "55eb09f0-0b88-420f-9dae-24dc66a9d882"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $('Loop - Lead por Lead').item.json.notion_page_id }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "=Status|select",
+              "selectValue": "=7. Lead Descartado"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Dia 10-> Notion - Mover para Lead Descartado",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [
+        368,
+        512
+      ],
+      "id": "33ee055e-886a-4d8e-9dca-7b537bd677ec",
+      "credentials": {
+        "notionApi": {
+          "id": "5jRyZYuMpw3o9kAG",
+          "name": "Notion account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/delete",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $json.id || $json.messageid || $json.messageId }}\"\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Apagar Mensagem",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1264,
+        32
+      ],
+      "id": "5c11a723-58d3-411c-b66c-0bcca53bd9ef",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop - Lead por Lead').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "etapa_followup",
+              "fieldValue": 3
+            }
+          ]
+        }
+      },
+      "name": "Supabase - Atualizar Etapa para \"3\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        32
+      ],
+      "id": "1e06175d-5e8d-4189-9786-0fea6baddc82",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop - Lead por Lead').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "etapa_followup",
+              "fieldValue": 2
+            }
+          ]
+        }
+      },
+      "name": "Supabase - Atualizar Etapa para \"2\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1712,
+        32
+      ],
+      "id": "ea7c11f4-dcb4-47a9-acf7-ed81e2c2d6fe",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop - Lead por Lead').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "etapa_followup",
+              "fieldValue": 4
+            }
+          ]
+        }
+      },
+      "name": "Supabase - Atualizar Etapa para \"4\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1936,
+        688
+      ],
+      "id": "d64ac074-118a-4ef1-a0ef-e3483df4a3db",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop - Lead por Lead').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "etapa_followup",
+              "fieldValue": 7
+            }
+          ]
+        }
+      },
+      "name": "Supabase - Atualizar Etapa para \"7\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        416
+      ],
+      "id": "f309614a-1de0-41a1-b7d4-88c733aa16eb",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Loop - Lead por Lead",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -80,
+        896
+      ],
+      "id": "de4b30f5-538e-46da-94b4-4f774e644bea"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 361) + 60 }}"
+      },
+      "name": "Pausa Anti-Ban (1 a 7 min)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        368,
+        112
+      ],
+      "id": "894c3720-a564-4116-b1e8-108f33077fc8",
+      "webhookId": "35c12c40-fd36-46f7-879e-f65ad7c49157"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop - Lead por Lead').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "descartado"
+            },
+            {
+              "fieldId": "etapa_followup",
+              "fieldValue": 10
+            }
+          ]
+        }
+      },
+      "name": "Supabase - Atualizar Etapa para \"10\" e Status para \"descartado\"",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        592,
+        512
+      ],
+      "id": "3e02cca2-b9f8-408f-94ef-bb3f12b65189",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const hoje = $now.setZone('America/Sao_Paulo');\nconst isDomingo = hoje.weekday === 7;\n\n// Pega o resultado do nó do Supabase\nconst dadosFeriado = $input.all().map(item => item.json);\n\n// Checa se encontrou algum feriado válido no banco hoje\nconst isFeriado = dadosFeriado.length > 0 && dadosFeriado[0].nome !== undefined;\n\nconst pausarHoje = isDomingo || isFeriado;\n\nreturn {\n  json: {\n    hoje: hoje.toFormat('yyyy-MM-dd'),\n    isDomingo: isDomingo,\n    isFeriado: isFeriado,\n    nomeFeriado: isFeriado ? `${dadosFeriado[0].nome} (${dadosFeriado[0].escopo})` : \"Nenhum\",\n    is_dia_util: !pausarHoje\n  }\n};"
+      },
+      "name": "Verificar Feriado e Domingo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        896
+      ],
+      "id": "bf3b6381-0a03-4c35-b3e6-a201943dc538"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.is_dia_util }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "É Dia Útil?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -976,
+        896
+      ],
+      "id": "f4f89959-4f17-49a3-a710-33c68344d925"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "feriados",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "data_feriado",
+              "condition": "eq",
+              "keyValue": "={{ $now.setZone('America/Sao_Paulo').toFormat('yyyy-MM-dd') }}"
+            }
+          ]
+        }
+      },
+      "name": "Supabase - Buscador de Feriados",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        896
+      ],
+      "alwaysOutputData": true,
+      "id": "1284ae0f-212a-425e-9a74-c54479efa414",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VsjWPrnUm8wbEmYA",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 8) + 7 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1264,
+        -160
+      ],
+      "id": "f79b3dcc-5ecd-4494-947b-d43f6bb537b5",
+      "name": "Pausa Digitando 7 a 14s",
+      "webhookId": "d5275ac9-67cd-402e-a163-ce6261747918"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 6) + 14 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1488,
+        224
+      ],
+      "id": "7373b24b-2bfd-4ff6-8875-acf2f5dc90f1",
+      "name": "Pausa Gravando 14 a 19s",
+      "webhookId": "65247d50-4c8c-42db-90b2-37636cc8d532"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Loop - Lead por Lead').item.json.followup_dia }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "É Dia 10?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        144,
+        256
+      ],
+      "id": "a532fa07-1044-4539-9d7c-97c4682d45bc"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "d5f3dabb-fdd0-407f-8150-32b853be8f06",
+                    "leftValue": "={{ $('Loop - Lead por Lead').item.json.followup_dia }}",
+                    "rightValue": 2,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "2 Dias"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "80ba0c56-34f8-4941-b783-ef8838784404",
+                    "leftValue": "={{ $('Loop - Lead por Lead').item.json.followup_dia }}",
+                    "rightValue": 3,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "3 Dias"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "0e46f85e-c2ee-492c-acd5-1c523c1e9b79",
+                    "leftValue": "={{ $('Loop - Lead por Lead').item.json.followup_dia }}",
+                    "rightValue": 4,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "4 Dias"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "09bf7f18-7cb0-4971-94ac-0427292048d8",
+                    "leftValue": "={{ $('Loop - Lead por Lead').item.json.followup_dia }}",
+                    "rightValue": 7,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "7 Dias"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "name": "Roteador de Follow-up",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        592,
+        64
+      ],
+      "id": "777ee50a-baa3-4b27-b313-98eaa3dd98c1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/presence",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Loop - Lead por Lead').item.json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"presence\": \"composing\",\n  \"delay\": 15000\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Status Digitando (15s)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1040,
+        -160
+      ],
+      "id": "af36ed8c-a1de-497a-8a34-63041856ab4b",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/message/presence",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Loop - Lead por Lead').item.json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"presence\": \"recording\",\n  \"delay\": 20000\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Status Gravando (20s)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1264,
+        224
+      ],
+      "id": "0cbff56e-a069-42b4-8d64-e29e04311d4b",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Loop - Lead por Lead').item.json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"Vi que você não respondeu aaqui\"\n}",
+        "options": {}
+      },
+      "name": "Dia 2-> Uazapi - Disparo Msg 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        816,
+        -160
+      ],
+      "id": "be5bf754-9983-4930-a168-58b612f0c9bb",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Loop - Lead por Lead').item.json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"Como estamos organizando as próximas entregas, preciso entender se vc desistiu de ter um site que traz mais 5 a 12 clientes do Google Meu Negócio por semana.\"\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Disparo Msg 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1488,
+        -160
+      ],
+      "id": "41924656-a116-4e69-860c-7cc1a4f746c4",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Loop - Lead por Lead').item.json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"text\": \"Esqueci de te avisar um detalhe importante sobre o teu site..\"\n}",
+        "options": {}
+      },
+      "name": "Dia 3-> Uazapi - Disparo Msg Curiosidade",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        816,
+        32
+      ],
+      "id": "39c03703-c9a4-486c-8c3b-d857067ce6b7",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Loop - Lead por Lead').item.json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"type\": \"ptt\",\n  \"file\": \"https://aroqebbofbxwurhkdvag.supabase.co/storage/v1/object/public/files-sdr/Audio%20Teu%20Site%20Ta%20No%20Ar%20Old.ogg\",\n  \"viewOnce\": true\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Disparo Áudio Visualização Única \"Teu site tá no ar\"",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1712,
+        416
+      ],
+      "id": "1f65dc29-5d70-423d-b1e6-4701a16e0d8f",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ac0b6054-868a-46cc-b6aa-da247c06bcec",
+              "name": "token",
+              "value": "9b1026ab-2491-4d7d-8317-14a5ebeab0a6",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1872,
+        896
+      ],
+      "id": "0527530b-4e15-4069-8260-8258c83e33de",
+      "name": "Uazapi - Token (Follow-up)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/call/make",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Loop - Lead por Lead').item.json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"call_duration\": 15\n}",
+        "options": {}
+      },
+      "name": "Dia 4➔ Uazapi - Simular ligação e derrubar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        816,
+        224
+      ],
+      "id": "4a67c41f-e42c-40e7-9dfc-c672bd094db8",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Loop - Lead por Lead').item.json.whatsapp.replace(/[^0-9]/g, '') }}\",\n  \"type\": \"video\",\n  \"file\": \"https://aroqebbofbxwurhkdvag.supabase.co/storage/v1/object/public/files-sdr/Video%20Derrubar%20Teu%20Site%20Hoje.mp4\",\n  \"viewOnce\": true\n}",
+        "options": {}
+      },
+      "name": "Dia 7➔ Uazapi - Disparo Vídeo Visualização Única \"Takeaway + FOMO\"",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        816,
+        416
+      ],
+      "id": "e93d99cf-d5da-4102-8ac9-5a2e601b15f7",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 1201) }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -752,
+        896
+      ],
+      "id": "10c49257-3230-431e-8a4f-93cff7e43cc0",
+      "name": "Atraso Simulando Humano (0 a 20min em segundos)",
+      "webhookId": "91a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "50 9 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Rodar Todo Dia às 9h50",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2096,
+        896
+      ],
+      "id": "f9cbbaf0-bee9-48bf-bd87-ffc9457852ac"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1c16416c-217f-484b-b72e-c53ec5608d9a",
+              "name": "limite_diario",
+              "value": 5,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1648,
+        896
+      ],
+      "id": "26a1275f-5d3b-4944-8679-a0bc85f2db6d",
+      "name": "Painel de Controle"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sdr-bot-fabio.uazapi.com/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Uazapi - Token (Follow-up)').first().json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"5551980573087\",\n  \"text\": \"✅ *Fila de Follow-up Concluída!*\"\n}",
+        "options": {}
+      },
+      "name": "Uazapi - Notificação Fim de Fila",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        144,
+        608
+      ],
+      "id": "e99d6877-821c-44f3-a287-3873a5821d9d"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Supabase - Buscar Leads": {
+      "main": [
+        [
+          {
+            "node": "Calcular 2, 3, 4, 7 e 10 Dias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa 2 a 4s": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Apagar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa 6 a 10": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Status Gravando (20s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular 2, 3, 4, 7 e 10 Dias": {
+      "main": [
+        [
+          {
+            "node": "Loop - Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dia 10-> Notion - Mover para Lead Descartado": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Atualizar Etapa para \"10\" e Status para \"descartado\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Apagar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Atualizar Etapa para \"3\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop - Lead por Lead": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Notificação Fim de Fila",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "É Dia 10?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa Anti-Ban (1 a 7 min)": {
+      "main": [
+        [
+          {
+            "node": "Roteador de Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Atualizar Etapa para \"2\"": {
+      "main": [
+        [
+          {
+            "node": "Loop - Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Atualizar Etapa para \"3\"": {
+      "main": [
+        [
+          {
+            "node": "Loop - Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Atualizar Etapa para \"4\"": {
+      "main": [
+        [
+          {
+            "node": "Loop - Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Atualizar Etapa para \"7\"": {
+      "main": [
+        [
+          {
+            "node": "Loop - Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Atualizar Etapa para \"10\" e Status para \"descartado\"": {
+      "main": [
+        [
+          {
+            "node": "Loop - Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Feriado e Domingo": {
+      "main": [
+        [
+          {
+            "node": "É Dia Útil?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Dia Útil?": {
+      "main": [
+        [
+          {
+            "node": "Atraso Simulando Humano (0 a 20min em segundos)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Buscador de Feriados": {
+      "main": [
+        [
+          {
+            "node": "Verificar Feriado e Domingo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa Digitando 7 a 14s": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Disparo Msg 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa Gravando 14 a 19s": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Disparo Áudio Visualização Única \"Teu site tá no ar\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Dia 10?": {
+      "main": [
+        [
+          {
+            "node": "Dia 10-> Notion - Mover para Lead Descartado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pausa Anti-Ban (1 a 7 min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador de Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Dia 2-> Uazapi - Disparo Msg 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dia 3-> Uazapi - Disparo Msg Curiosidade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dia 4➔ Uazapi - Simular ligação e derrubar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dia 7➔ Uazapi - Disparo Vídeo Visualização Única \"Takeaway + FOMO\"",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop - Lead por Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Status Digitando (15s)": {
+      "main": [
+        [
+          {
+            "node": "Pausa Digitando 7 a 14s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Status Gravando (20s)": {
+      "main": [
+        [
+          {
+            "node": "Pausa Gravando 14 a 19s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dia 2-> Uazapi - Disparo Msg 1": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Status Digitando (15s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Disparo Msg 2": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Atualizar Etapa para \"2\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dia 3-> Uazapi - Disparo Msg Curiosidade": {
+      "main": [
+        [
+          {
+            "node": "Pausa 2 a 4s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Disparo Áudio Visualização Única \"Teu site tá no ar\"": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Atualizar Etapa para \"4\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Uazapi - Token (Follow-up)": {
+      "main": [
+        [
+          {
+            "node": "Painel de Controle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dia 4➔ Uazapi - Simular ligação e derrubar": {
+      "main": [
+        [
+          {
+            "node": "Pausa 6 a 10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dia 7➔ Uazapi - Disparo Vídeo Visualização Única \"Takeaway + FOMO\"": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Atualizar Etapa para \"7\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atraso Simulando Humano (0 a 20min em segundos)": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Buscar Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rodar Todo Dia às 9h50": {
+      "main": [
+        [
+          {
+            "node": "Uazapi - Token (Follow-up)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Painel de Controle": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Buscador de Feriados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "756da55e-0148-4de0-a327-b44163b02b93",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ea4ff6e230fcfbbc07839ceec4042a2116291c314eed27927035c7f01088f7ea"
+  },
+  "nodeGroups": [],
+  "id": "t9IBGBx96GjOU80B",
+  "tags": []
+}
